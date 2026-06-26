@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Mail, Phone, MapPin, MessageCircle, Upload, Send } from "lucide-react";
+import { Mail, Phone, MapPin, MessageCircle, Upload, Send, Code2 } from "lucide-react";
 import { Section, SectionHeader } from "@/components/ui/Section";
 import { Button } from "@/components/ui/Button";
 import { BRAND } from "@/lib/constants";
@@ -50,6 +50,12 @@ export function ContactPage() {
                   label: "WhatsApp",
                   value: "Chat with us",
                   href: `https://wa.me/${BRAND.whatsapp.replace(/\D/g, "")}`,
+                },
+                {
+                  icon: Code2,
+                  label: "GitHub",
+                  value: "@mr-printer-3D",
+                  href: BRAND.github,
                 },
                 { icon: MapPin, label: "Address", value: BRAND.address },
               ].map((item) => (

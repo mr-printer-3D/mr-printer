@@ -45,10 +45,10 @@ export function ProductsPage() {
           initial="hidden"
           whileInView="visible"
           viewport={{ once: true }}
-          className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3"
+          className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3"
         >
           {CATALOG.map((product) => (
-            <motion.div key={product.slug} variants={fadeUp}>
+            <motion.div key={product.slug} variants={fadeUp} className="h-full">
               <ProductCard product={product} />
             </motion.div>
           ))}

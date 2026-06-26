@@ -60,14 +60,18 @@ export function Portfolio() {
               className="group relative cursor-pointer overflow-hidden rounded-3xl"
               onClick={() => setLightboxItem(item)}
             >
-              <div className="relative h-72 overflow-hidden">
-                <Image
-                  src={item.image}
-                  alt={item.title}
-                  fill
-                  className="object-cover transition-transform duration-500 group-hover:scale-105"
-                  sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-                />
+              <div
+                className="relative flex aspect-[4/5] min-h-[320px] items-center justify-center overflow-hidden bg-brand-bg p-4"
+              >
+                <div className="relative h-full w-full">
+                  <Image
+                    src={item.image}
+                    alt={item.title}
+                    fill
+                    className="object-contain"
+                    sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                  />
+                </div>
               </div>
 
               <div className="absolute inset-0 flex items-end bg-gradient-to-t from-brand-black/60 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100">
@@ -113,14 +117,16 @@ export function Portfolio() {
                 <X className="h-5 w-5" />
               </button>
 
-              <div className="relative aspect-[4/3] w-full">
-                <Image
-                  src={lightboxItem.image}
-                  alt={lightboxItem.title}
-                  fill
-                  className="object-cover"
-                  sizes="(max-width: 768px) 100vw, 768px"
-                />
+              <div className="relative flex aspect-[4/5] max-h-[70vh] w-full items-center justify-center bg-brand-bg p-4">
+                <div className="relative h-full w-full">
+                  <Image
+                    src={lightboxItem.image}
+                    alt={lightboxItem.title}
+                    fill
+                    className="object-contain"
+                    sizes="(max-width: 768px) 100vw, 768px"
+                  />
+                </div>
               </div>
 
               <div className="p-8 text-center">

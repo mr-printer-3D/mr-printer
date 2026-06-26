@@ -40,11 +40,16 @@ export interface CatalogProduct {
   material: string;
   dimensions: { height: string; width: string };
   heroImage: string;
+  accentColor: string;
+  cardDescription: string;
   images: { src: string; alt: string }[];
   features: { title: string; description: string }[];
   highlights: string[];
   useCases: string[];
   steps: { title: string; description: string }[];
+  stepsHeading?: string;
+  showcaseImages: [string, string];
+  ctaText: string;
 }
 
 export interface ProcessStep {

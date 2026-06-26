@@ -2,7 +2,7 @@
 
 import { useRef, useMemo } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
-import { Float, Environment } from "@react-three/drei";
+import { Float } from "@react-three/drei";
 import * as THREE from "three";
 
 function FloatingKeychain() {
@@ -19,31 +19,22 @@ function FloatingKeychain() {
   return (
     <group ref={groupRef}>
       <Float speed={2} rotationIntensity={0.4} floatIntensity={1.5}>
-        {/* Keychain ring */}
         <mesh position={[0, 1.2, 0]}>
           <torusGeometry args={[0.35, 0.06, 16, 32]} />
           <meshStandardMaterial color="#D8A531" metalness={0.9} roughness={0.2} />
         </mesh>
-
-        {/* Connector */}
         <mesh position={[0, 0.7, 0]}>
           <cylinderGeometry args={[0.04, 0.04, 0.3, 16]} />
           <meshStandardMaterial color="#D8A531" metalness={0.8} roughness={0.3} />
         </mesh>
-
-        {/* Main body - rounded rectangle */}
         <mesh position={[0, 0, 0]}>
           <boxGeometry args={[1.4, 1.8, 0.15]} />
           <meshStandardMaterial color="#121212" metalness={0.3} roughness={0.4} />
         </mesh>
-
-        {/* Gold accent stripe */}
         <mesh position={[0, 0.3, 0.08]}>
           <boxGeometry args={[1.2, 0.15, 0.02]} />
           <meshStandardMaterial color="#D8A531" metalness={0.9} roughness={0.15} />
         </mesh>
-
-        {/* MR text block representation */}
         <mesh position={[0, -0.3, 0.08]}>
           <boxGeometry args={[0.8, 0.4, 0.02]} />
           <meshStandardMaterial color="#D8A531" metalness={0.7} roughness={0.2} />
@@ -89,13 +80,10 @@ function NozzleWithFilament() {
   return (
     <group position={[2, 0, 0]}>
       <Float speed={1} floatIntensity={0.5}>
-        {/* Nozzle */}
         <mesh position={[0, 1.5, 0]}>
           <coneGeometry args={[0.2, 0.5, 16]} />
           <meshStandardMaterial color="#121212" metalness={0.6} roughness={0.3} />
         </mesh>
-
-        {/* Filament layers building up */}
         <group ref={filamentRef} position={[0, 0, 0]}>
           {layers.map((i) => (
             <mesh key={i} position={[0, i * 0.12 - 0.4, 0]}>
@@ -143,23 +131,36 @@ function Scene({ mouse }: { mouse: { x: number; y: number } }) {
         <FloatingNamePlate />
       </group>
       <NozzleWithFilament />
-
-      <Environment preset="studio" />
     </>
   );
 }
 
 interface HeroSceneProps {
   mouse: { x: number; y: number };
+  onReady?: () => void;
+  onError?: () => void;
 }
 
-export function HeroScene({ mouse }: HeroSceneProps) {
+export function HeroScene({ mouse, onReady, onError }: HeroSceneProps) {
   return (
     <Canvas
       camera={{ position: [0, 0, 6], fov: 45 }}
       dpr={[1, 2]}
-      gl={{ antialias: true, alpha: true }}
-      style={{ background: "transparent" }}
+      gl={{
+        antialias: true,
+        alpha: true,
+        powerPreference: "high-performance",
+        failIfMajorPerformanceCaveat: false,
+      }}
+      style={{ width: "100%", height: "100%", background: "transparent" }}
+      onCreated={({ gl }) => {
+        gl.setClearColor(0x000000, 0);
+        onReady?.();
+      }}
+      onError={(error) => {
+        console.error("Hero 3D scene error:", error);
+        onError?.();
+      }}
     >
       <Scene mouse={mouse} />
     </Canvas>

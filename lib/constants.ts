@@ -234,6 +234,34 @@ export const PORTFOLIO_ITEMS = [
     image: "/products/happy-cloud-charm-keychain/gift.png",
     slug: "happy-cloud-charm-keychain",
   },
+  {
+    id: 7,
+    title: "Baby Flexi Dragon",
+    category: "keychains",
+    image: "/products/baby-flexi-dragon/hero.png",
+    slug: "baby-flexi-dragon",
+  },
+  {
+    id: 8,
+    title: "Baby Dragon — Features",
+    category: "keychains",
+    image: "/products/baby-flexi-dragon/features.png",
+    slug: "baby-flexi-dragon",
+  },
+  {
+    id: 9,
+    title: "Baby Dragon — On Backpack",
+    category: "keychains",
+    image: "/products/baby-flexi-dragon/companion.png",
+    slug: "baby-flexi-dragon",
+  },
+  {
+    id: 10,
+    title: "Baby Dragon — Perfect Gift",
+    category: "personalized-gifts",
+    image: "/products/baby-flexi-dragon/gift.png",
+    slug: "baby-flexi-dragon",
+  },
 ] as const;
 
 export const GALLERY_FILTERS = [

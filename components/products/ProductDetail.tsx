@@ -29,7 +29,7 @@ export function ProductDetail({ product }: ProductDetailProps) {
   return (
     <>
       {/* Hero */}
-      <section className="relative bg-[#A8D8F0] px-6 pt-32 pb-16 md:px-12 lg:px-20">
+      <section className="relative px-6 pt-32 pb-16 md:px-12 lg:px-20" style={{ backgroundColor: product.accentColor }}>
         <div className="mx-auto grid max-w-7xl items-center gap-12 lg:grid-cols-2">
           <motion.div
             initial={{ opacity: 0, x: -30 }}
@@ -78,13 +78,13 @@ export function ProductDetail({ product }: ProductDetailProps) {
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.8, delay: 0.2 }}
-            className="relative aspect-square overflow-hidden rounded-3xl shadow-premium-lg"
+            className="relative aspect-square overflow-hidden rounded-3xl bg-white p-6 shadow-premium-lg"
           >
             <Image
               src={product.images[activeImage].src}
               alt={product.images[activeImage].alt}
               fill
-              className="object-cover"
+              className="object-contain p-2"
               priority
               sizes="(max-width: 1024px) 100vw, 50vw"
             />
@@ -97,7 +97,7 @@ export function ProductDetail({ product }: ProductDetailProps) {
             <button
               key={image.src}
               onClick={() => setActiveImage(index)}
-              className={`relative h-20 w-20 shrink-0 overflow-hidden rounded-xl border-2 transition-all ${
+              className={`relative h-20 w-20 shrink-0 overflow-hidden rounded-xl border-2 bg-white transition-all ${
                 activeImage === index
                   ? "border-brand-black scale-105"
                   : "border-transparent opacity-70 hover:opacity-100"
@@ -107,7 +107,7 @@ export function ProductDetail({ product }: ProductDetailProps) {
                 src={image.src}
                 alt={image.alt}
                 fill
-                className="object-cover"
+                className="object-contain p-1"
                 sizes="80px"
               />
             </button>
@@ -167,13 +167,13 @@ export function ProductDetail({ product }: ProductDetailProps) {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ delay: index * 0.1, duration: 0.6 }}
-              className="relative aspect-[4/3] overflow-hidden rounded-3xl shadow-premium"
+              className="relative aspect-[4/5] overflow-hidden rounded-3xl bg-brand-bg p-4 shadow-premium"
             >
               <Image
                 src={image.src}
                 alt={image.alt}
                 fill
-                className="object-cover"
+                className="object-contain p-2"
                 sizes="(max-width: 768px) 100vw, 50vw"
               />
             </motion.div>
@@ -233,7 +233,7 @@ export function ProductDetail({ product }: ProductDetailProps) {
             Easy To Use
           </span>
           <h2 className="mt-4 font-heading text-4xl font-bold text-brand-black">
-            Simple Steps for Everyday Smiles
+            {product.stepsHeading ?? "Simple Steps for Everyday Smiles"}
           </h2>
         </div>
 
@@ -262,24 +262,28 @@ export function ProductDetail({ product }: ProductDetailProps) {
       </Section>
 
       {/* Quality & gift CTA */}
-      <section className="grid md:grid-cols-2">
-        <div className="relative aspect-square md:aspect-auto md:min-h-[400px]">
-          <Image
-            src="/products/happy-cloud-charm-keychain/quality.png"
-            alt="Quality details"
-            fill
-            className="object-cover"
-            sizes="50vw"
-          />
+      <section className="grid gap-4 bg-brand-bg md:grid-cols-2 md:gap-0">
+        <div className="relative flex min-h-[320px] items-center justify-center p-6 md:min-h-[480px] md:p-10">
+          <div className="relative h-full w-full max-h-[600px] aspect-[4/5]">
+            <Image
+              src={product.showcaseImages[0]}
+              alt={`${product.name} quality details`}
+              fill
+              className="object-contain"
+              sizes="50vw"
+            />
+          </div>
         </div>
-        <div className="relative aspect-square md:aspect-auto md:min-h-[400px]">
-          <Image
-            src="/products/happy-cloud-charm-keychain/gift.png"
-            alt="Perfect gift"
-            fill
-            className="object-cover"
-            sizes="50vw"
-          />
+        <div className="relative flex min-h-[320px] items-center justify-center p-6 md:min-h-[480px] md:p-10">
+          <div className="relative h-full w-full max-h-[600px] aspect-[4/5]">
+            <Image
+              src={product.showcaseImages[1]}
+              alt={`${product.name} gift presentation`}
+              fill
+              className="object-contain"
+              sizes="50vw"
+            />
+          </div>
         </div>
       </section>
 
@@ -290,8 +294,7 @@ export function ProductDetail({ product }: ProductDetailProps) {
           {product.tagline}
         </h2>
         <p className="mt-4 text-white/50 max-w-md mx-auto">
-          Order your Happy Cloud Charm today and spread a little happiness
-          everywhere you go.
+          {product.ctaText}
         </p>
         <div className="mt-8 flex flex-col items-center justify-center gap-4 sm:flex-row">
           <Button href="/contact" variant="gold" size="lg" magnetic>
