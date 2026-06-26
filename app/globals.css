@@ -1,0 +1,66 @@
+@import url("https://api.fontshare.com/v2/css?f[]=satoshi@700,500,400,300&display=swap");
+@import "tailwindcss";
+
+:root {
+  --brand-black: #121212;
+  --brand-gold: #d8a531;
+  --brand-white: #ffffff;
+  --brand-bg: #f8f7f4;
+  --brand-accent: #efeae3;
+}
+
+@theme inline {
+  --color-brand-black: var(--brand-black);
+  --color-brand-gold: var(--brand-gold);
+  --color-brand-white: var(--brand-white);
+  --color-brand-bg: var(--brand-bg);
+  --color-brand-accent: var(--brand-accent);
+  --font-heading: "Satoshi", var(--font-inter), system-ui, sans-serif;
+  --font-sans: var(--font-inter), system-ui, sans-serif;
+  --shadow-premium: 0 4px 24px -4px rgba(18, 18, 18, 0.08);
+  --shadow-premium-lg: 0 12px 48px -8px rgba(18, 18, 18, 0.12);
+  --shadow-gold: 0 4px 24px -4px rgba(216, 165, 49, 0.3);
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--brand-gold) transparent;
+}
+
+html {
+  scroll-behavior: auto;
+}
+
+body {
+  background: var(--brand-bg);
+  color: var(--brand-black);
+  font-family: var(--font-sans);
+  overflow-x: hidden;
+}
+
+::selection {
+  background: var(--brand-gold);
+  color: var(--brand-black);
+}
+
+.glass {
+  background: rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+.shadow-premium {
+  box-shadow: var(--shadow-premium);
+}
+
+.shadow-premium-lg {
+  box-shadow: var(--shadow-premium-lg);
+}
+
+.shadow-gold {
+  box-shadow: var(--shadow-gold);
+}
+
+.font-heading {
+  font-family: var(--font-heading);
+}
