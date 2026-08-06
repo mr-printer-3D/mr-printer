@@ -2,6 +2,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   transpilePackages: ["three"],
+  trailingSlash: false,
   async redirects() {
     return [
       // Old studio paths → new root tool paths
@@ -10,23 +11,23 @@ const nextConfig: NextConfig = {
       { source: "/studio/index.html", destination: "/", permanent: false },
       {
         source: "/studio/tools/pricing",
-        destination: "/tools/pricing/",
+        destination: "/tools/pricing",
         permanent: false,
       },
       {
         source: "/studio/tools/pricing/",
-        destination: "/tools/pricing/",
+        destination: "/tools/pricing",
         permanent: false,
       },
       {
         source: "/studio/tools/pricing/index.html",
-        destination: "/tools/pricing/",
+        destination: "/tools/pricing",
         permanent: false,
       },
-      // Force trailing slash so relative assets never break
+      // Avoid Next trailing-slash bounce fighting our rewrite
       {
-        source: "/tools/pricing",
-        destination: "/tools/pricing/",
+        source: "/tools/pricing/",
+        destination: "/tools/pricing",
         permanent: false,
       },
     ];
@@ -36,7 +37,7 @@ const nextConfig: NextConfig = {
       beforeFiles: [
         { source: "/", destination: "/index.html" },
         {
-          source: "/tools/pricing/",
+          source: "/tools/pricing",
           destination: "/tools/pricing/index.html",
         },
       ],
