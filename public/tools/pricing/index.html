@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Mr. Printer — Pricing Calculator</title>
+<link rel="icon" type="image/png" href="../../assets/logo.png" />
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<div class="app">
+
+  <header class="topbar">
+    <div class="brand">
+      <img class="brand-mark" src="../../assets/logo.png" alt="Mr. Printer logo" />
+      <div class="brand-text">
+        <h1>Mr. Printer Studio</h1>
+        <span>Pricing Calculator</span>
+      </div>
+    </div>
+    <nav class="tabs">
+      <a class="tab-btn studio-link" href="/">← Studio</a>
+      <button class="tab-btn active" data-tab="calculator">Calculator</button>
+      <button class="tab-btn" data-tab="catalog">Catalog</button>
+      <button class="tab-btn" data-tab="settings">Settings</button>
+    </nav>
+  </header>
+
+  <main class="content">
+
+    <!-- CALCULATOR TAB -->
+    <section id="tab-calculator" class="tab-panel active">
+      <div class="calc-layout">
+
+        <form id="product-form" class="card main-card">
+          <div class="form-header">
+            <h2 id="form-title">Add a Product</h2>
+            <span id="edit-badge" class="badge hidden">Editing</span>
+          </div>
+
+          <div class="two-col form-row">
+            <label class="field big">
+              Product Name
+              <input type="text" id="f-name" placeholder="e.g. Happy Cloud Charm Keychain" required />
+            </label>
+            <label class="field big">
+              SKU <span class="hint-inline">auto from name</span>
+              <input type="text" id="f-sku" placeholder="e.g. MRHCCK" />
+            </label>
+          </div>
+
+          <div class="two-col form-row">
+            <label class="field">
+              Weight (g)
+              <input type="number" step="any" id="f-weight" placeholder="0" required />
+            </label>
+            <label class="field">
+              Print Hours
+              <input type="number" step="any" id="f-hours" placeholder="0" required />
+            </label>
+          </div>
+
+          <details class="more-options">
+            <summary>More options — dimensions, post-processing, custom rates…</summary>
+            <div class="more-inner">
+
+              <label class="field">Dimensions (LxWxH cm)
+                <input type="text" id="f-dims" placeholder="e.g. 15x7.5x2.5" />
+              </label>
+
+              <div class="two-col">
+                <label class="field">Post-Processing (minutes)
+                  <input type="number" step="any" id="f-postmin" />
+                </label>
+                <label class="field">Packaging ₹
+                  <input type="number" step="any" id="f-packaging" />
+                </label>
+              </div>
+
+              <div class="two-col">
+                <label class="field">Design Hours
+                  <input type="number" step="any" id="f-designhours" />
+                </label>
+                <label class="field">Profit Margin %
+                  <input type="number" step="any" id="f-margin" />
+                </label>
+              </div>
+
+              <details class="nested-options">
+                <summary>Custom rates for this product only (overrides your Settings defaults)</summary>
+                <div class="more-inner">
+                  <div class="two-col">
+                    <label class="field">Waste %
+                      <input type="number" step="any" id="f-waste" />
+                    </label>
+                    <label class="field">Filament Price / kg ₹
+                      <input type="number" step="any" id="f-filament" />
+                    </label>
+                  </div>
+                  <div class="two-col">
+                    <label class="field">Machine Rate / hr ₹
+                      <input type="number" step="any" id="f-machinerate" />
+                    </label>
+                    <label class="field">Printer Watt
+                      <input type="number" step="any" id="f-watt" />
+                    </label>
+                  </div>
+                  <div class="two-col">
+                    <label class="field">Electricity Unit ₹ / kWh
+                      <input type="number" step="any" id="f-elecunit" />
+                    </label>
+                    <label class="field">Labour Rate / hr ₹
+                      <input type="number" step="any" id="f-labourrate" />
+                    </label>
+                  </div>
+                  <div class="two-col">
+                    <label class="field">Maintenance %
+                      <input type="number" step="any" id="f-maint" />
+                    </label>
+                    <label class="field">Failure Buffer %
+                      <input type="number" step="any" id="f-fail" />
+                    </label>
+                  </div>
+                  <div class="two-col">
+                    <label class="field">Design Rate / hr ₹
+                      <input type="number" step="any" id="f-designrate" />
+                    </label>
+                  </div>
+                </div>
+              </details>
+
+              <details class="nested-options">
+                <summary>Custom MRP / Meesho price (overrides auto-pricing)</summary>
+                <div class="more-inner">
+                  <div class="two-col">
+                    <label class="field">MRP ₹ <span class="hint-inline">leave blank for auto</span>
+                      <input type="number" step="any" id="f-mrp" placeholder="Auto" />
+                    </label>
+                    <label class="field">Meesho Price ₹ <span class="hint-inline">leave blank for auto</span>
+                      <input type="number" step="any" id="f-meesho" placeholder="Auto" />
+                    </label>
+                  </div>
+                </div>
+              </details>
+
+            </div>
+          </details>
+
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary" id="save-btn">Save to Catalog</button>
+            <button type="button" class="btn btn-ghost" id="clear-btn">Clear</button>
+          </div>
+        </form>
+
+        <div class="card result-card">
+          <span class="result-label">Suggested Selling Price</span>
+          <div class="result-price" id="res-price">₹0.00</div>
+          <div class="result-sub">
+            <span>Cost <strong id="res-cost">₹0.00</strong></span>
+            <span>Profit <strong id="res-profit">₹0.00</strong></span>
+          </div>
+
+          <div class="listing-box">
+            <div class="listing-row">
+              <span>MRP</span>
+              <strong id="auto-mrp-label">₹0.00</strong>
+            </div>
+            <div class="listing-row">
+              <span>Meesho Price</span>
+              <strong id="auto-meesho-label">₹0.00</strong>
+            </div>
+          </div>
+
+          <details class="breakdown-details">
+            <summary>View full cost breakdown</summary>
+            <div class="breakdown-list" id="breakdown-list"></div>
+          </details>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- CATALOG TAB -->
+    <section id="tab-catalog" class="tab-panel">
+
+      <div class="stats-row">
+        <div class="stat-card">
+          <span class="stat-label">Products</span>
+          <span class="stat-value" id="stat-count">0</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">Avg. Selling Price</span>
+          <span class="stat-value" id="stat-avg-price">₹0</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">Avg. Margin</span>
+          <span class="stat-value" id="stat-avg-margin">0%</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">Catalog Value</span>
+          <span class="stat-value" id="stat-total-value">₹0</span>
+        </div>
+      </div>
+
+      <div class="card catalog-card">
+        <div class="catalog-toolbar">
+          <div class="search-box">
+            <span class="search-icon">🔍</span>
+            <input type="search" id="search-input" placeholder="Search products or SKU..." />
+          </div>
+          <div class="toolbar-actions">
+            <button class="btn btn-ghost" id="export-btn">⬇ Export</button>
+            <label class="btn btn-ghost file-btn">
+              ⬆ Import
+              <input type="file" id="import-input" accept=".csv" hidden />
+            </label>
+            <button class="btn btn-danger" id="clear-all-btn">Clear All</button>
+          </div>
+        </div>
+
+        <div class="table-wrap">
+          <table id="catalog-table">
+            <thead>
+              <tr>
+                <th data-sort="name">Product</th>
+                <th data-sort="weight">Weight</th>
+                <th data-sort="cost">Cost</th>
+                <th data-sort="price">Selling Price</th>
+                <th data-sort="margin">Margin</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="catalog-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- SETTINGS TAB -->
+    <section id="tab-settings" class="tab-panel">
+      <div class="card settings-card">
+        <h2>Default Rates</h2>
+        <p class="hint">These fill in automatically for every new product — set them once.</p>
+
+        <div class="two-col">
+          <label class="field">Filament Price / kg ₹
+            <input type="number" step="any" id="s-filament" />
+          </label>
+          <label class="field">Machine Rate / hr ₹
+            <input type="number" step="any" id="s-machinerate" />
+          </label>
+        </div>
+        <div class="two-col">
+          <label class="field">Electricity Unit ₹ / kWh
+            <input type="number" step="any" id="s-elecunit" />
+          </label>
+          <label class="field">Labour Rate / hr ₹
+            <input type="number" step="any" id="s-labourrate" />
+          </label>
+        </div>
+        <div class="two-col">
+          <label class="field">Profit Margin %
+            <input type="number" step="any" id="s-margin" />
+          </label>
+          <label class="field">Meesho Commission %
+            <input type="number" step="any" id="s-meeshocommission" />
+          </label>
+        </div>
+
+        <details class="nested-options">
+          <summary>Advanced settings — waste, maintenance, MRP rounding…</summary>
+          <div class="more-inner">
+            <div class="two-col">
+              <label class="field">Printer Watt
+                <input type="number" step="any" id="s-watt" />
+              </label>
+              <label class="field">Waste %
+                <input type="number" step="any" id="s-waste" />
+              </label>
+            </div>
+            <div class="two-col">
+              <label class="field">Maintenance %
+                <input type="number" step="any" id="s-maint" />
+              </label>
+              <label class="field">Failure Buffer %
+                <input type="number" step="any" id="s-fail" />
+              </label>
+            </div>
+            <div class="two-col">
+              <label class="field">Design Rate / hr ₹
+                <input type="number" step="any" id="s-designrate" />
+              </label>
+              <label class="field">Default Packaging ₹
+                <input type="number" step="any" id="s-packaging" />
+              </label>
+            </div>
+            <div class="two-col">
+              <label class="field">MRP Markup % <span class="hint-inline">above selling price</span>
+                <input type="number" step="any" id="s-mrpmarkup" />
+              </label>
+              <label class="field">MRP Rounding Step ₹
+                <input type="number" step="any" id="s-mrpstep" />
+              </label>
+            </div>
+            <div class="two-col">
+              <label class="field">MRP Psychological Offset ₹
+                <input type="number" step="any" id="s-mrpoffset" />
+              </label>
+            </div>
+          </div>
+        </details>
+
+        <div class="form-actions">
+          <button class="btn btn-primary" id="save-settings-btn">Save Defaults</button>
+          <span id="settings-saved-msg" class="saved-msg hidden">Saved ✓</span>
+        </div>
+      </div>
+
+      <div class="card settings-card sync-card">
+        <h2>🔗 Google Sheet Sync + Tools Hub</h2>
+        <p class="hint">
+          Connect your <a href="https://docs.google.com/spreadsheets/d/1HaJIjWntMd16vnSAFa9wASb_sWds2YwmrN4yGmGZ84M/edit" target="_blank" rel="noopener">Google Sheet</a>
+          so products sync automatically. After you redeploy <code>google-apps-script.js</code>, opening the Web App URL shows a shared
+          <strong>Tools Hub</strong> (for you &amp; Ritesh). Pricing API stays at the same URL with <code>?api=1</code>.
+        </p>
+
+        <label class="field big">
+          Apps Script Web App URL
+          <input type="text" id="s-sheeturl" placeholder="https://script.google.com/macros/s/XXXXXXXX/exec" />
+        </label>
+
+        <div class="sync-actions">
+          <button type="button" class="btn btn-ghost" id="test-connection-btn">🔌 Test Connection</button>
+          <button type="button" class="btn btn-ghost" id="pull-sheet-btn">⬇ Pull from Sheet</button>
+          <button type="button" class="btn btn-ghost" id="push-sheet-btn">⬆ Push All to Sheet</button>
+        </div>
+        <span id="sync-status" class="sync-status"></span>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="footer">Mr. Printer Studio · Create · Print · Personalize · Pricing is one of many tools</footer>
+</div>
+
+<div id="toast" class="toast hidden"></div>
+
+<script src="data.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

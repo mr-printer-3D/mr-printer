@@ -2,19 +2,38 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   transpilePackages: ["three"],
-  async rewrites() {
+  async redirects() {
     return [
-      { source: "/studio", destination: "/studio/index.html" },
-      { source: "/studio/", destination: "/studio/index.html" },
+      // Old studio paths → new root tool paths
+      { source: "/studio", destination: "/", permanent: false },
+      { source: "/studio/", destination: "/", permanent: false },
+      { source: "/studio/index.html", destination: "/", permanent: false },
       {
         source: "/studio/tools/pricing",
-        destination: "/studio/tools/pricing/index.html",
+        destination: "/tools/pricing",
+        permanent: false,
       },
       {
         source: "/studio/tools/pricing/",
-        destination: "/studio/tools/pricing/index.html",
+        destination: "/tools/pricing",
+        permanent: false,
+      },
+      {
+        source: "/studio/tools/pricing/index.html",
+        destination: "/tools/pricing",
+        permanent: false,
       },
     ];
+  },
+  async rewrites() {
+    // Serve Studio static HTML instead of the old Next.js website pages
+    return {
+      beforeFiles: [
+        { source: "/", destination: "/index.html" },
+        { source: "/tools/pricing", destination: "/tools/pricing/index.html" },
+        { source: "/tools/pricing/", destination: "/tools/pricing/index.html" },
+      ],
+    };
   },
 };
 
