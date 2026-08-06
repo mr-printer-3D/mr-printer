@@ -32,5 +32,24 @@ components/    → UI, layout, home sections, 3D, products
 lib/           → Constants, products catalog, animations
 hooks/         → Custom React hooks
 public/        → Images & static assets
+public/studio/ → Mr. Printer Studio tools (Pricing Calculator, more later)
 types/         → TypeScript interfaces
 ```
+
+## Mr. Printer Studio (internal tools)
+
+Team tools are hosted under `/studio/` on this same site (keeps the marketing site on `main`, tools developed on branches like `tool/pricing`).
+
+| URL | Tool |
+|-----|------|
+| `/studio/` | Studio home — all tools |
+| `/studio/tools/pricing/` | Pricing Calculator |
+
+**Branches**
+- `main` — website + shipped studio tools
+- `tool/pricing` — Pricing Calculator work
+- `tool/<name>` — future tools
+
+After merge to `main` + Vercel deploy:
+- Studio: https://mr-printer.vercel.app/studio/
+- Pricing: https://mr-printer.vercel.app/studio/tools/pricing/
