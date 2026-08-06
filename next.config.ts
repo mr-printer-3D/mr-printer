@@ -10,28 +10,35 @@ const nextConfig: NextConfig = {
       { source: "/studio/index.html", destination: "/", permanent: false },
       {
         source: "/studio/tools/pricing",
-        destination: "/tools/pricing",
+        destination: "/tools/pricing/",
         permanent: false,
       },
       {
         source: "/studio/tools/pricing/",
-        destination: "/tools/pricing",
+        destination: "/tools/pricing/",
         permanent: false,
       },
       {
         source: "/studio/tools/pricing/index.html",
-        destination: "/tools/pricing",
+        destination: "/tools/pricing/",
+        permanent: false,
+      },
+      // Force trailing slash so relative assets never break
+      {
+        source: "/tools/pricing",
+        destination: "/tools/pricing/",
         permanent: false,
       },
     ];
   },
   async rewrites() {
-    // Serve Studio static HTML instead of the old Next.js website pages
     return {
       beforeFiles: [
         { source: "/", destination: "/index.html" },
-        { source: "/tools/pricing", destination: "/tools/pricing/index.html" },
-        { source: "/tools/pricing/", destination: "/tools/pricing/index.html" },
+        {
+          source: "/tools/pricing/",
+          destination: "/tools/pricing/index.html",
+        },
       ],
     };
   },
