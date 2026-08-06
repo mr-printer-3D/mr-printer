@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Mr. Printer Studio — Tools</title>
+<link rel="icon" type="image/png" href="assets/logo.png" />
+<style>
+  :root {
+    --bg: #faf3e7;
+    --surface: #ffffff;
+    --border: #ebe0c8;
+    --text: #241610;
+    --muted: #8c7b64;
+    --gold: #d8a63d;
+    --gold-dark: #9c6f17;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, 'Segoe UI', Inter, system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+  }
+  .wrap { max-width: 920px; margin: 0 auto; padding: 40px 24px 60px; }
+  .brand { display: flex; align-items: center; gap: 14px; margin-bottom: 8px; }
+  .brand img { width: 56px; height: 56px; border-radius: 50%; box-shadow: 0 2px 8px rgba(36,22,16,.18); }
+  h1 { margin: 0; font-size: 26px; }
+  .tag { color: var(--muted); margin: 0 0 28px; font-size: 14px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+  .card {
+    display: block;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 22px;
+    text-decoration: none;
+    color: inherit;
+    box-shadow: 0 6px 20px rgba(60, 40, 10, .07);
+    transition: transform .12s ease, border-color .12s;
+  }
+  .card:hover { transform: translateY(-2px); border-color: var(--gold); }
+  .card-title { font-weight: 800; font-size: 16px; margin-bottom: 8px; }
+  .card-desc { font-size: 13.5px; color: var(--muted); line-height: 1.45; }
+  .card-meta { margin-top: 14px; font-size: 11px; font-weight: 700; color: var(--gold-dark); text-transform: uppercase; letter-spacing: .03em; }
+  .help {
+    margin-top: 28px;
+    padding: 16px 18px;
+    background: var(--surface);
+    border: 1px dashed var(--border);
+    border-radius: 12px;
+    font-size: 13.5px;
+    color: var(--muted);
+    line-height: 1.55;
+  }
+  .help strong { color: var(--text); }
+  .help a { color: var(--gold-dark); font-weight: 700; }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="brand">
+      <img src="assets/logo.png" alt="Mr. Printer" />
+      <div>
+        <h1>Mr. Printer Studio</h1>
+      </div>
+    </div>
+    <p class="tag">Create · Print · Personalize — one studio, many tools</p>
+
+    <div class="grid">
+      <a class="card" href="/tools/pricing">
+        <div class="card-title">Pricing Calculator</div>
+        <div class="card-desc">Add products, auto-calculate cost, selling price, MRP &amp; Meesho. Syncs to Google Sheet.</div>
+        <div class="card-meta">Tool 1 · Open</div>
+      </a>
+
+      <a class="card" href="https://docs.google.com/spreadsheets/d/1HaJIjWntMd16vnSAFa9wASb_sWds2YwmrN4yGmGZ84M/edit" target="_blank" rel="noopener">
+        <div class="card-title">Pricing Catalog (Sheet)</div>
+        <div class="card-desc">Live spreadsheet with all product pricing data.</div>
+        <div class="card-meta">Open Google Sheet</div>
+      </a>
+
+      <a class="card" href="https://drive.google.com/drive/folders/1eu20CUKc26JH5PbpxcSICkvCNvInGEr6" target="_blank" rel="noopener">
+        <div class="card-title">Google Drive Folder</div>
+        <div class="card-desc">Shared folder for Studio files and future tools.</div>
+        <div class="card-meta">Open Drive</div>
+      </a>
+    </div>
+
+    <div class="help">
+      <strong>For the team:</strong> Bookmark this Studio home and share the link with Ritesh.
+      New tools will appear here as cards. Also share the
+      <a href="https://docs.google.com/spreadsheets/d/1HaJIjWntMd16vnSAFa9wASb_sWds2YwmrN4yGmGZ84M/edit" target="_blank" rel="noopener">Google Sheet</a>
+      so pricing data stays in sync.
+    </div>
+  </div>
+</body>
+</html>

@@ -36,20 +36,20 @@ public/studio/ → Mr. Printer Studio tools (Pricing Calculator, more later)
 types/         → TypeScript interfaces
 ```
 
-## Mr. Printer Studio (internal tools)
+## Mr. Printer Studio (main app)
 
-Team tools are hosted under `/studio/` on this same site (keeps the marketing site on `main`, tools developed on branches like `tool/pricing`).
+The marketing website homepage is turned off. This deploy is **Mr. Printer Studio** (internal tools).
 
 | URL | Tool |
 |-----|------|
-| `/studio/` | Studio home — all tools |
-| `/studio/tools/pricing/` | Pricing Calculator |
+| `/` | Studio home — all tools |
+| `/tools/pricing` | Pricing Calculator |
 
 **Branches**
-- `main` — website + shipped studio tools
+- `main` — live Studio
 - `tool/pricing` — Pricing Calculator work
 - `tool/<name>` — future tools
 
-After merge to `main` + Vercel deploy:
-- Studio: https://mr-printer.vercel.app/studio/
-- Pricing: https://mr-printer.vercel.app/studio/tools/pricing/
+Live (after deploy):
+- Studio: https://mr-printer.vercel.app/
+- Pricing: https://mr-printer.vercel.app/tools/pricing
