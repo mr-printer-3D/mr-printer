@@ -1,9 +1,22 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <title>Mr. Printer — Pricing Calculator</title>
+<script>
+  try {
+    var raw = localStorage.getItem("mrPrinterPricingData_v2");
+    if (raw) {
+      var parsed = JSON.parse(raw);
+      var t = parsed.settings && parsed.settings.theme;
+      if (t === "dark" || t === "light") document.documentElement.setAttribute("data-theme", t);
+    }
+  } catch (e) {}
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;0,9..40,800;1,9..40,400&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap" rel="stylesheet" />
 <link rel="icon" type="image/png" href="/assets/logo.png" />
 <link rel="stylesheet" href="/tools/pricing/style.css" />
 </head>
@@ -16,134 +29,190 @@
       <img class="brand-mark" src="/assets/logo.png" alt="Mr. Printer logo" />
       <div class="brand-text">
         <h1>Mr. Printer Studio</h1>
-        <span>Pricing Calculator</span>
+        <span>Pricing · Inventory · Catalog</span>
       </div>
     </div>
-    <nav class="tabs">
-      <a class="tab-btn studio-link" href="/">← Studio</a>
-      <button class="tab-btn active" data-tab="calculator">Calculator</button>
-      <button class="tab-btn" data-tab="catalog">Catalog</button>
-      <button class="tab-btn" data-tab="settings">Settings</button>
-    </nav>
+    <div class="topbar-right">
+      <div class="theme-switch" role="group" aria-label="Theme">
+        <button type="button" class="theme-btn" data-theme-set="light" title="Light theme">☀</button>
+        <button type="button" class="theme-btn" data-theme-set="dark" title="Dark theme">☾</button>
+      </div>
+      <nav class="tabs">
+        <a class="tab-btn studio-link" href="/">← Studio</a>
+        <button class="tab-btn active" data-tab="calculator">Calculator</button>
+        <button class="tab-btn" data-tab="catalog">Catalog</button>
+        <button class="tab-btn" data-tab="inventory">Inventory</button>
+        <button class="tab-btn" data-tab="settings">Settings</button>
+      </nav>
+    </div>
   </header>
 
   <main class="content">
 
-    <!-- CALCULATOR TAB -->
+    <!-- CALCULATOR -->
     <section id="tab-calculator" class="tab-panel active">
       <div class="calc-layout">
 
         <form id="product-form" class="card main-card">
           <div class="form-header">
-            <h2 id="form-title">Add a Product</h2>
+            <div>
+              <h2 id="form-title">New Product</h2>
+              <p class="form-sub">Price from filament colors, print time, labour & packaging</p>
+            </div>
             <span id="edit-badge" class="badge hidden">Editing</span>
           </div>
 
-          <div class="two-col form-row">
-            <label class="field big">
-              Product Name
-              <input type="text" id="f-name" placeholder="e.g. Happy Cloud Charm Keychain" required />
-            </label>
-            <label class="field big">
-              SKU <span class="hint-inline">auto from name</span>
-              <input type="text" id="f-sku" placeholder="e.g. MRHCCK" />
+          <div class="section-block">
+            <h3 class="section-title">Product</h3>
+            <div class="two-col form-row">
+              <label class="field big">
+                Product Name
+                <input type="text" id="f-name" placeholder="e.g. Happy Cloud Charm Keychain" required />
+              </label>
+              <label class="field big">
+                SKU <span class="hint-inline">auto from name</span>
+                <input type="text" id="f-sku" placeholder="e.g. MRHCCK" />
+              </label>
+            </div>
+            <div class="two-col form-row">
+              <label class="field big">
+                Product weight (g)
+                <input type="number" step="any" id="f-weight" placeholder="e.g. 22.8" required />
+              </label>
+              <label class="field big">
+                Print Hours
+                <input type="number" step="any" id="f-hours" placeholder="0" required />
+              </label>
+            </div>
+            <label class="field">
+              Dimensions (LxWxH cm)
+              <input type="text" id="f-dims" placeholder="e.g. 15x7.5x2.5" />
             </label>
           </div>
 
-          <div class="two-col form-row">
+          <div class="section-block">
+            <div class="section-head-row">
+              <h3 class="section-title">Filament colors</h3>
+              <button type="button" class="btn btn-sm btn-ghost" id="add-color-btn">+ Add color</button>
+            </div>
+            <p class="section-hint">Add one or more colors and their weight (g). Cost = each color’s ₹/kg × weight (with waste). If no color weights are set, product weight above is used.</p>
+            <div id="colors-list" class="colors-list"></div>
+            <div class="color-totals">
+              <span>Color weight <strong id="colors-total-weight">0 g</strong></span>
+              <span>Material cost <strong id="colors-total-cost">₹0.00</strong></span>
+            </div>
+          </div>
+
+          <div class="section-block">
+            <h3 class="section-title">Labour & design</h3>
             <label class="field">
-              Weight (g)
-              <input type="number" step="any" id="f-weight" placeholder="0" required />
+              Post-processing (minutes)
+              <input type="number" step="any" id="f-postmin" value="15" />
             </label>
-            <label class="field">
-              Print Hours
-              <input type="number" step="any" id="f-hours" placeholder="0" required />
+            <label class="toggle-row">
+              <input type="checkbox" id="f-include-design" />
+              <span class="toggle-ui"></span>
+              <span class="toggle-text">
+                <strong>Include design cost</strong>
+                <small>Design rate × design hours</small>
+              </span>
             </label>
+            <div id="design-fields" class="two-col design-fields hidden">
+              <label class="field">
+                Design hours
+                <input type="number" step="any" id="f-designhours" value="0" />
+              </label>
+              <label class="field">
+                Design rate / hr ₹
+                <input type="number" step="any" id="f-designrate" />
+              </label>
+            </div>
+          </div>
+
+          <div class="section-block">
+            <h3 class="section-title">Packaging & shipping</h3>
+            <div class="two-col">
+              <label class="field">
+                Base packaging ₹
+                <input type="number" step="any" id="f-packaging" />
+              </label>
+              <label class="field">
+                Shipping ₹
+                <input type="number" step="any" id="f-shipping" placeholder="0" />
+              </label>
+            </div>
+            <div class="pack-extras" id="pack-extras">
+              <label class="pack-chip">
+                <input type="checkbox" id="f-pack-box" />
+                <span class="pack-chip-body">
+                  <strong>External box</strong>
+                  <em id="pack-box-label">₹25</em>
+                </span>
+              </label>
+              <label class="pack-chip">
+                <input type="checkbox" id="f-pack-sticker" />
+                <span class="pack-chip-body">
+                  <strong>Sticker</strong>
+                  <em id="pack-sticker-label">₹5</em>
+                </span>
+              </label>
+              <label class="pack-chip">
+                <input type="checkbox" id="f-pack-ribbon" />
+                <span class="pack-chip-body">
+                  <strong>Ribbon</strong>
+                  <em id="pack-ribbon-label">₹8</em>
+                </span>
+              </label>
+            </div>
+            <div class="section-head-row" style="margin-top:14px">
+              <p class="section-hint" style="margin:0">Other packaging</p>
+              <button type="button" class="btn btn-sm btn-ghost" id="add-custom-pack-btn">+ Add other</button>
+            </div>
+            <div id="custom-pack-list" class="custom-pack-list"></div>
+          </div>
+
+          <div class="section-block">
+            <h3 class="section-title">Inventory</h3>
+            <p class="section-hint">Stock across your two warehouses</p>
+            <div class="two-col warehouse-row">
+              <label class="field warehouse-field">
+                <span class="wh-label"><span class="wh-dot ritesh"></span> Ritesh</span>
+                <input type="number" step="1" min="0" id="f-inv-ritesh" value="0" />
+              </label>
+              <label class="field warehouse-field">
+                <span class="wh-label"><span class="wh-dot mayuri"></span> Mayuri</span>
+                <input type="number" step="1" min="0" id="f-inv-mayuri" value="0" />
+              </label>
+            </div>
           </div>
 
           <details class="more-options">
-            <summary>More options — dimensions, post-processing, custom rates…</summary>
+            <summary>Fixed rates — waste, machine, labour, margin…</summary>
             <div class="more-inner">
+              <div class="fixed-rates" id="fixed-rates">
+                <div class="fixed-rate"><span>Profit margin</span><strong>50%</strong></div>
+                <div class="fixed-rate"><span>Waste</span><strong id="fixed-waste">10%</strong></div>
+                <div class="fixed-rate"><span>Machine / hr</span><strong id="fixed-machine">₹30</strong></div>
+                <div class="fixed-rate"><span>Printer watt</span><strong id="fixed-watt">1300</strong></div>
+                <div class="fixed-rate"><span>Electricity / kWh</span><strong id="fixed-elec">₹15</strong></div>
+                <div class="fixed-rate"><span>Labour / hr</span><strong id="fixed-labour">₹100</strong></div>
+                <div class="fixed-rate"><span>Maintenance</span><strong id="fixed-maint">5%</strong></div>
+                <div class="fixed-rate"><span>Failure buffer</span><strong id="fixed-fail">10%</strong></div>
+              </div>
+            </div>
+          </details>
 
-              <label class="field">Dimensions (LxWxH cm)
-                <input type="text" id="f-dims" placeholder="e.g. 15x7.5x2.5" />
-              </label>
-
+          <details class="more-options">
+            <summary>MRP / Meesho overrides</summary>
+            <div class="more-inner">
               <div class="two-col">
-                <label class="field">Post-Processing (minutes)
-                  <input type="number" step="any" id="f-postmin" />
+                <label class="field">MRP ₹ <span class="hint-inline">blank = auto</span>
+                  <input type="number" step="any" id="f-mrp" placeholder="Auto" />
                 </label>
-                <label class="field">Packaging ₹
-                  <input type="number" step="any" id="f-packaging" />
+                <label class="field">Meesho ₹ <span class="hint-inline">blank = auto</span>
+                  <input type="number" step="any" id="f-meesho" placeholder="Auto" />
                 </label>
               </div>
-
-              <div class="two-col">
-                <label class="field">Design Hours
-                  <input type="number" step="any" id="f-designhours" />
-                </label>
-                <label class="field">Profit Margin %
-                  <input type="number" step="any" id="f-margin" />
-                </label>
-              </div>
-
-              <details class="nested-options">
-                <summary>Custom rates for this product only (overrides your Settings defaults)</summary>
-                <div class="more-inner">
-                  <div class="two-col">
-                    <label class="field">Waste %
-                      <input type="number" step="any" id="f-waste" />
-                    </label>
-                    <label class="field">Filament Price / kg ₹
-                      <input type="number" step="any" id="f-filament" />
-                    </label>
-                  </div>
-                  <div class="two-col">
-                    <label class="field">Machine Rate / hr ₹
-                      <input type="number" step="any" id="f-machinerate" />
-                    </label>
-                    <label class="field">Printer Watt
-                      <input type="number" step="any" id="f-watt" />
-                    </label>
-                  </div>
-                  <div class="two-col">
-                    <label class="field">Electricity Unit ₹ / kWh
-                      <input type="number" step="any" id="f-elecunit" />
-                    </label>
-                    <label class="field">Labour Rate / hr ₹
-                      <input type="number" step="any" id="f-labourrate" />
-                    </label>
-                  </div>
-                  <div class="two-col">
-                    <label class="field">Maintenance %
-                      <input type="number" step="any" id="f-maint" />
-                    </label>
-                    <label class="field">Failure Buffer %
-                      <input type="number" step="any" id="f-fail" />
-                    </label>
-                  </div>
-                  <div class="two-col">
-                    <label class="field">Design Rate / hr ₹
-                      <input type="number" step="any" id="f-designrate" />
-                    </label>
-                  </div>
-                </div>
-              </details>
-
-              <details class="nested-options">
-                <summary>Custom MRP / Meesho price (overrides auto-pricing)</summary>
-                <div class="more-inner">
-                  <div class="two-col">
-                    <label class="field">MRP ₹ <span class="hint-inline">leave blank for auto</span>
-                      <input type="number" step="any" id="f-mrp" placeholder="Auto" />
-                    </label>
-                    <label class="field">Meesho Price ₹ <span class="hint-inline">leave blank for auto</span>
-                      <input type="number" step="any" id="f-meesho" placeholder="Auto" />
-                    </label>
-                  </div>
-                </div>
-              </details>
-
             </div>
           </details>
 
@@ -153,52 +222,56 @@
           </div>
         </form>
 
-        <div class="card result-card">
-          <span class="result-label">Suggested Selling Price</span>
-          <div class="result-price" id="res-price">₹0.00</div>
-          <div class="result-sub">
-            <span>Cost <strong id="res-cost">₹0.00</strong></span>
-            <span>Profit <strong id="res-profit">₹0.00</strong></span>
-          </div>
-
-          <div class="listing-box">
-            <div class="listing-row">
-              <span>MRP</span>
-              <strong id="auto-mrp-label">₹0.00</strong>
+        <aside class="result-stack">
+          <div class="card result-card">
+            <span class="result-label">Suggested selling price</span>
+            <div class="result-price" id="res-price">₹0.00</div>
+            <div class="result-sub">
+              <span>Cost <strong id="res-cost">₹0.00</strong></span>
+              <span>Profit <strong id="res-profit">₹0.00</strong></span>
             </div>
-            <div class="listing-row">
-              <span>Meesho Price</span>
-              <strong id="auto-meesho-label">₹0.00</strong>
+            <div class="listing-box">
+              <div class="listing-row">
+                <span>MRP</span>
+                <strong id="auto-mrp-label">₹0.00</strong>
+              </div>
+              <div class="listing-row">
+                <span>Meesho</span>
+                <strong id="auto-meesho-label">₹0.00</strong>
+              </div>
             </div>
+            <div class="inv-mini" id="inv-mini">
+              <span><i class="wh-dot ritesh"></i> Ritesh <b id="mini-ritesh">0</b></span>
+              <span><i class="wh-dot mayuri"></i> Mayuri <b id="mini-mayuri">0</b></span>
+              <span class="inv-total">Total <b id="mini-total">0</b></span>
+            </div>
+            <details class="breakdown-details" open>
+              <summary>Cost breakdown</summary>
+              <div class="breakdown-list" id="breakdown-list"></div>
+            </details>
           </div>
-
-          <details class="breakdown-details">
-            <summary>View full cost breakdown</summary>
-            <div class="breakdown-list" id="breakdown-list"></div>
-          </details>
-        </div>
+        </aside>
 
       </div>
     </section>
 
-    <!-- CATALOG TAB -->
+    <!-- CATALOG -->
     <section id="tab-catalog" class="tab-panel">
-
       <div class="stats-row">
         <div class="stat-card">
           <span class="stat-label">Products</span>
           <span class="stat-value" id="stat-count">0</span>
         </div>
         <div class="stat-card">
-          <span class="stat-label">Avg. Selling Price</span>
+          <span class="stat-label">Avg. selling price</span>
           <span class="stat-value" id="stat-avg-price">₹0</span>
         </div>
         <div class="stat-card">
-          <span class="stat-label">Avg. Margin</span>
+          <span class="stat-label">Avg. margin</span>
           <span class="stat-value" id="stat-avg-margin">0%</span>
         </div>
         <div class="stat-card">
-          <span class="stat-label">Catalog Value</span>
+          <span class="stat-label">Catalog value</span>
           <span class="stat-value" id="stat-total-value">₹0</span>
         </div>
       </div>
@@ -206,19 +279,18 @@
       <div class="card catalog-card">
         <div class="catalog-toolbar">
           <div class="search-box">
-            <span class="search-icon">🔍</span>
-            <input type="search" id="search-input" placeholder="Search products or SKU..." />
+            <span class="search-icon">⌕</span>
+            <input type="search" id="search-input" placeholder="Search products or SKU…" />
           </div>
           <div class="toolbar-actions">
-            <button class="btn btn-ghost" id="export-btn">⬇ Export</button>
+            <button class="btn btn-ghost" id="export-btn">Export</button>
             <label class="btn btn-ghost file-btn">
-              ⬆ Import
+              Import
               <input type="file" id="import-input" accept=".csv" hidden />
             </label>
-            <button class="btn btn-danger" id="clear-all-btn">Clear All</button>
+            <button class="btn btn-danger" id="clear-all-btn">Clear all</button>
           </div>
         </div>
-
         <div class="table-wrap">
           <table id="catalog-table">
             <thead>
@@ -226,7 +298,8 @@
                 <th data-sort="name">Product</th>
                 <th data-sort="weight">Weight</th>
                 <th data-sort="cost">Cost</th>
-                <th data-sort="price">Selling Price</th>
+                <th data-sort="price">Selling</th>
+                <th data-sort="stock">Stock</th>
                 <th data-sort="margin">Margin</th>
                 <th></th>
               </tr>
@@ -237,111 +310,200 @@
       </div>
     </section>
 
-    <!-- SETTINGS TAB -->
-    <section id="tab-settings" class="tab-panel">
-      <div class="card settings-card">
-        <h2>Default Rates</h2>
-        <p class="hint">These fill in automatically for every new product — set them once.</p>
-
-        <div class="two-col">
-          <label class="field">Filament Price / kg ₹
-            <input type="number" step="any" id="s-filament" />
-          </label>
-          <label class="field">Machine Rate / hr ₹
-            <input type="number" step="any" id="s-machinerate" />
-          </label>
+    <!-- INVENTORY -->
+    <section id="tab-inventory" class="tab-panel">
+      <div class="stats-row inv-stats">
+        <div class="stat-card">
+          <span class="stat-label">Total units</span>
+          <span class="stat-value" id="inv-stat-total">0</span>
         </div>
-        <div class="two-col">
-          <label class="field">Electricity Unit ₹ / kWh
-            <input type="number" step="any" id="s-elecunit" />
-          </label>
-          <label class="field">Labour Rate / hr ₹
-            <input type="number" step="any" id="s-labourrate" />
-          </label>
+        <div class="stat-card">
+          <span class="stat-label"><span class="wh-dot ritesh"></span> Ritesh</span>
+          <span class="stat-value" id="inv-stat-ritesh">0</span>
         </div>
-        <div class="two-col">
-          <label class="field">Profit Margin %
-            <input type="number" step="any" id="s-margin" />
-          </label>
-          <label class="field">Meesho Commission %
-            <input type="number" step="any" id="s-meeshocommission" />
-          </label>
+        <div class="stat-card">
+          <span class="stat-label"><span class="wh-dot mayuri"></span> Mayuri</span>
+          <span class="stat-value" id="inv-stat-mayuri">0</span>
         </div>
-
-        <details class="nested-options">
-          <summary>Advanced settings — waste, maintenance, MRP rounding…</summary>
-          <div class="more-inner">
-            <div class="two-col">
-              <label class="field">Printer Watt
-                <input type="number" step="any" id="s-watt" />
-              </label>
-              <label class="field">Waste %
-                <input type="number" step="any" id="s-waste" />
-              </label>
-            </div>
-            <div class="two-col">
-              <label class="field">Maintenance %
-                <input type="number" step="any" id="s-maint" />
-              </label>
-              <label class="field">Failure Buffer %
-                <input type="number" step="any" id="s-fail" />
-              </label>
-            </div>
-            <div class="two-col">
-              <label class="field">Design Rate / hr ₹
-                <input type="number" step="any" id="s-designrate" />
-              </label>
-              <label class="field">Default Packaging ₹
-                <input type="number" step="any" id="s-packaging" />
-              </label>
-            </div>
-            <div class="two-col">
-              <label class="field">MRP Markup % <span class="hint-inline">above selling price</span>
-                <input type="number" step="any" id="s-mrpmarkup" />
-              </label>
-              <label class="field">MRP Rounding Step ₹
-                <input type="number" step="any" id="s-mrpstep" />
-              </label>
-            </div>
-            <div class="two-col">
-              <label class="field">MRP Psychological Offset ₹
-                <input type="number" step="any" id="s-mrpoffset" />
-              </label>
-            </div>
-          </div>
-        </details>
-
-        <div class="form-actions">
-          <button class="btn btn-primary" id="save-settings-btn">Save Defaults</button>
-          <span id="settings-saved-msg" class="saved-msg hidden">Saved ✓</span>
+        <div class="stat-card">
+          <span class="stat-label">SKUs in stock</span>
+          <span class="stat-value" id="inv-stat-skus">0</span>
         </div>
       </div>
 
-      <div class="card settings-card sync-card">
-        <h2>🔗 Google Sheet Sync + Tools Hub</h2>
-        <p class="hint">
-          Connect your <a href="https://docs.google.com/spreadsheets/d/1HaJIjWntMd16vnSAFa9wASb_sWds2YwmrN4yGmGZ84M/edit" target="_blank" rel="noopener">Google Sheet</a>
-          so products sync automatically. After you redeploy <code>google-apps-script.js</code>, opening the Web App URL shows a shared
-          <strong>Tools Hub</strong> (for you &amp; Ritesh). Pricing API stays at the same URL with <code>?api=1</code>.
-        </p>
-
-        <label class="field big">
-          Apps Script Web App URL
-          <input type="text" id="s-sheeturl" placeholder="https://script.google.com/macros/s/XXXXXXXX/exec" />
-        </label>
-
-        <div class="sync-actions">
-          <button type="button" class="btn btn-ghost" id="test-connection-btn">🔌 Test Connection</button>
-          <button type="button" class="btn btn-ghost" id="pull-sheet-btn">⬇ Pull from Sheet</button>
-          <button type="button" class="btn btn-ghost" id="push-sheet-btn">⬆ Push All to Sheet</button>
+      <div class="card catalog-card">
+        <div class="catalog-toolbar">
+          <div class="search-box">
+            <span class="search-icon">⌕</span>
+            <input type="search" id="inv-search" placeholder="Search inventory…" />
+          </div>
+          <div class="toolbar-actions">
+            <button type="button" class="btn btn-ghost" id="inv-pull-btn">Pull from sheet</button>
+            <button type="button" class="btn btn-ghost" id="inv-push-btn">Push to sheet</button>
+          </div>
         </div>
-        <span id="sync-status" class="sync-status"></span>
+        <p class="section-hint inv-hint">Stock syncs to the same Google Sheet (Ritesh / Mayuri columns). Changes save locally and sync automatically.</p>
+        <div class="table-wrap">
+          <table id="inventory-table">
+            <thead>
+              <tr>
+                <th>Product</th>
+                <th>Ritesh</th>
+                <th>Mayuri</th>
+                <th>Total</th>
+              </tr>
+            </thead>
+            <tbody id="inventory-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- SETTINGS -->
+    <section id="tab-settings" class="tab-panel">
+      <div class="settings-layout">
+
+        <div class="card settings-card settings-span-full">
+          <h2>Appearance</h2>
+          <p class="hint">Choose light or dark theme. Saved on this device.</p>
+          <div class="theme-picker" id="theme-picker">
+            <button type="button" class="theme-card" data-theme-set="light">
+              <span class="theme-preview light-preview"></span>
+              <strong>Light</strong>
+            </button>
+            <button type="button" class="theme-card" data-theme-set="dark">
+              <span class="theme-preview dark-preview"></span>
+              <strong>Dark</strong>
+            </button>
+          </div>
+        </div>
+
+        <div class="settings-row">
+          <div class="card settings-card">
+            <h2>Default rates</h2>
+            <p class="hint">Profit, packaging &amp; listing settings. Core print rates below are locked.</p>
+
+            <details class="nested-options">
+              <summary>Fixed rates — waste, machine, labour, margin…</summary>
+              <div class="more-inner">
+                <div class="fixed-rates" id="settings-fixed-rates">
+                  <div class="fixed-rate"><span>Profit margin</span><strong>50%</strong></div>
+                  <div class="fixed-rate"><span>Waste</span><strong id="s-fixed-waste">10%</strong></div>
+                  <div class="fixed-rate"><span>Machine / hr</span><strong id="s-fixed-machine">₹30</strong></div>
+                  <div class="fixed-rate"><span>Printer watt</span><strong id="s-fixed-watt">1300</strong></div>
+                  <div class="fixed-rate"><span>Electricity / kWh</span><strong id="s-fixed-elec">₹15</strong></div>
+                  <div class="fixed-rate"><span>Labour / hr</span><strong id="s-fixed-labour">₹100</strong></div>
+                  <div class="fixed-rate"><span>Maintenance</span><strong id="s-fixed-maint">5%</strong></div>
+                  <div class="fixed-rate"><span>Failure buffer</span><strong id="s-fixed-fail">10%</strong></div>
+                </div>
+              </div>
+            </details>
+            <!-- Hidden so save logic keeps locked values -->
+            <input type="hidden" id="s-machinerate" />
+            <input type="hidden" id="s-elecunit" />
+            <input type="hidden" id="s-labourrate" />
+            <input type="hidden" id="s-fail" />
+            <input type="hidden" id="s-watt" />
+            <input type="hidden" id="s-waste" />
+            <input type="hidden" id="s-maint" />
+            <input type="hidden" id="s-filament" />
+            <input type="hidden" id="s-margin" value="50" />
+
+            <div class="two-col">
+              <label class="field">Base packaging ₹
+                <input type="number" step="any" id="s-packaging" />
+              </label>
+              <label class="field">Design rate / hr ₹
+                <input type="number" step="any" id="s-designrate" />
+              </label>
+            </div>
+            <div class="two-col">
+              <label class="field">Meesho commission %
+                <input type="number" step="any" id="s-meeshocommission" />
+              </label>
+              <label class="field">Default shipping ₹
+                <input type="number" step="any" id="s-shipping" />
+              </label>
+            </div>
+
+            <h3 class="subsection-title">Extra packaging defaults</h3>
+            <div class="two-col">
+              <label class="field">External box ₹
+                <input type="number" step="any" id="s-pack-box" />
+              </label>
+              <label class="field">Sticker ₹
+                <input type="number" step="any" id="s-pack-sticker" />
+              </label>
+            </div>
+            <div class="two-col">
+              <label class="field">Ribbon ₹
+                <input type="number" step="any" id="s-pack-ribbon" />
+              </label>
+              <span class="field-spacer" aria-hidden="true"></span>
+            </div>
+
+            <details class="nested-options">
+              <summary>MRP rounding</summary>
+              <div class="more-inner">
+                <div class="two-col">
+                  <label class="field">MRP markup %
+                    <input type="number" step="any" id="s-mrpmarkup" />
+                  </label>
+                  <label class="field">MRP round step ₹
+                    <input type="number" step="any" id="s-mrpstep" />
+                  </label>
+                </div>
+                <div class="two-col">
+                  <label class="field">MRP offset ₹
+                    <input type="number" step="any" id="s-mrpoffset" />
+                  </label>
+                  <span class="field-spacer" aria-hidden="true"></span>
+                </div>
+              </div>
+            </details>
+
+            <div class="form-actions">
+              <button type="button" class="btn btn-primary" id="save-settings-btn">Save defaults</button>
+              <span id="settings-saved-msg" class="saved-msg hidden">Saved ✓</span>
+            </div>
+          </div>
+
+          <div class="card settings-card settings-colors">
+            <div class="section-head-row">
+              <h2>Filament color library</h2>
+              <button type="button" class="btn btn-sm btn-ghost" id="add-library-color-btn">+ Color</button>
+            </div>
+            <p class="hint">Set ₹/kg per color. Calculator picks from this list.</p>
+            <div id="color-library" class="color-library"></div>
+          </div>
+        </div>
+
+        <div class="card settings-card settings-span-full sync-card">
+          <h2>Google Sheet sync</h2>
+          <p class="hint">
+            Connect your
+            <a href="https://docs.google.com/spreadsheets/d/1HaJIjWntMd16vnSAFa9wASb_sWds2YwmrN4yGmGZ84M/edit" target="_blank" rel="noopener">Google Sheet</a>
+            via Apps Script. Catalog <strong>and inventory</strong> (Ritesh / Mayuri) sync to the same sheet.
+            Redeploy after updating <code>google-apps-script.js</code>. API uses <code>?api=1</code>.
+          </p>
+          <label class="field big">
+            Apps Script Web App URL
+            <input type="text" id="s-sheeturl" placeholder="https://script.google.com/macros/s/XXXXXXXX/exec" />
+          </label>
+          <div class="sync-actions">
+            <button type="button" class="btn btn-ghost" id="test-connection-btn">Test connection</button>
+            <button type="button" class="btn btn-ghost" id="pull-sheet-btn">Pull from sheet</button>
+            <button type="button" class="btn btn-ghost" id="push-sheet-btn">Push all to sheet</button>
+          </div>
+          <span id="sync-status" class="sync-status"></span>
+        </div>
+
       </div>
     </section>
 
   </main>
 
-  <footer class="footer">Mr. Printer Studio · Create · Print · Personalize · Pricing is one of many tools</footer>
+  <footer class="footer">Mr. Printer Studio · Create · Print · Personalize</footer>
 </div>
 
 <div id="toast" class="toast hidden"></div>
