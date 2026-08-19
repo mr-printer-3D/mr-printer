@@ -1209,7 +1209,7 @@ el("inv-search").addEventListener("input", () => {
 
 el("inv-pull-btn").addEventListener("click", () => {
   ensureSheetUrlSaved();
-  syncPullAll({ replace: true });
+  syncPullAll({ replace: true, force: true });
 });
 
 el("inv-push-btn").addEventListener("click", () => {
@@ -1595,36 +1595,9 @@ function setSharedSyncUi(message, kind) {
   setSyncStatus(message);
 }
 
-async function sheetPost(payload) {
-  const url = getSheetUrl();
-  if (!url) throw new Error("No Google Sheet connected yet.");
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "text/plain;charset=utf-8" },
-    body: JSON.stringify(payload),
-  });
-  const data = await res.json();
-  if (!data.ok) throw new Error(data.error || "Sheet sync failed.");
-  return data;
-}
-
-function apiUrl(base) {
-  return base + (base.indexOf("?") === -1 ? "?" : "&") + "api=1";
-}
-
-async function sheetGetAll() {
-  const url = getSheetUrl();
-  if (!url) throw new Error("No Google Sheet connected yet.");
-  const res = await fetch(apiUrl(url), { method: "GET", cache: "no-store" });
-  const data = await res.json();
-  if (!data.ok) throw new Error(data.error || "Sheet sync failed.");
-  if (data.scriptVersion != null) {
-    state.settings.lastScriptVersion = data.scriptVersion;
-  }
-  return data.products || [];
-}
-
-const REQUIRED_SCRIPT_VERSION = 4;
+const REQUIRED_SCRIPT_VERSION = 5;
+let syncInFlight = null;
+let bootstrapDone = false;
 
 function sheetSyncErrorHint(errMsg) {
   const msg = String(errMsg || "");
@@ -1642,6 +1615,51 @@ function sheetSyncErrorHint(errMsg) {
     );
   }
   return msg;
+}
+
+async function sheetPost(payload) {
+  const url = getSheetUrl();
+  if (!url) throw new Error("No Google Sheet connected yet.");
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "text/plain;charset=utf-8" },
+    body: JSON.stringify(payload),
+  });
+  const text = await res.text();
+  let data;
+  try {
+    data = JSON.parse(text);
+  } catch (_) {
+    throw new Error("Sheet returned non-JSON. Redeploy Apps Script Web App (New version).");
+  }
+  if (!data.ok) throw new Error(data.error || "Sheet sync failed.");
+  if (data.scriptVersion != null) state.settings.lastScriptVersion = data.scriptVersion;
+  return data;
+}
+
+function apiUrl(base) {
+  return base + (base.indexOf("?") === -1 ? "?" : "&") + "api=1";
+}
+
+async function sheetGetAll() {
+  const url = getSheetUrl();
+  if (!url) throw new Error("No Google Sheet connected yet.");
+  const res = await fetch(apiUrl(url), { method: "GET", cache: "no-store" });
+  const text = await res.text();
+  let data;
+  try {
+    data = JSON.parse(text);
+  } catch (_) {
+    throw new Error(
+      "Sheet returned non-JSON (often means ?api=1 missing or old Web App). Redeploy Apps Script."
+    );
+  }
+  if (!data.ok) throw new Error(data.error || "Sheet sync failed.");
+  if (data.scriptVersion != null) {
+    state.settings.lastScriptVersion = data.scriptVersion;
+  }
+  const products = Array.isArray(data.products) ? data.products : [];
+  return products;
 }
 
 function productForSync(p) {
@@ -1730,7 +1748,7 @@ function remoteToProduct(r) {
   if (!Array.isArray(packagingCustom)) packagingCustom = [];
 
   return migrateProduct({
-    id: r.id,
+    id: r.id != null && String(r.id).trim() !== "" ? String(r.id).trim() : "",
     sku: r.sku || "",
     name: r.name || "",
     dims: r.dims || "",
@@ -1845,82 +1863,124 @@ async function syncPushAll(silent) {
 async function syncPullAll(opts) {
   const replace = !!(opts && opts.replace);
   const silent = !!(opts && opts.silent);
-  ensureSheetUrlSaved();
-  if (!isSheetConnected()) {
-    if (!silent) alert("Add your Google Sheet Web App URL in Settings first.");
-    setSharedSyncUi("Not connected — paste Apps Script URL in Settings", "error");
-    return false;
+  const force = !!(opts && opts.force);
+
+  // Serialize pulls so refresh + tab-focus cannot race and wipe the catalog
+  if (syncInFlight) {
+    try {
+      await syncInFlight;
+    } catch (_) {}
   }
-  setSharedSyncUi(replace ? "Loading shared catalog…" : "Pulling from sheet…");
-  try {
-    const remote = await sheetGetAll();
-    if (replace) {
-      // Never wipe a local catalog with an empty sheet (prevents accidental wipe)
-      if (!remote.length) {
-        if (!state.products.length) {
+
+  const run = (async () => {
+    ensureSheetUrlSaved();
+    if (!isSheetConnected()) {
+      if (!silent) alert("Add your Google Sheet Web App URL in Settings first.");
+      setSharedSyncUi("Not connected — paste Apps Script URL in Settings", "error");
+      return false;
+    }
+    setSharedSyncUi(replace ? "Loading shared catalog…" : "Pulling from sheet…");
+    try {
+      const remote = await sheetGetAll();
+      const prevCount = state.products.length;
+
+      if (replace) {
+        const next = remote
+          .map(remoteToProduct)
+          .filter((p) => p && p.id)
+          .map((p) => {
+            if (!p.id) p.id = "sheet-" + Math.random().toString(36).slice(2, 9);
+            return p;
+          });
+
+        // Never wipe a good local catalog with empty / broken remote data
+        if (!next.length) {
+          if (prevCount > 0) {
+            setSharedSyncUi(
+              `Sheet returned 0 usable products — kept ${prevCount} local · ${new Date().toLocaleTimeString()}`,
+              "warn"
+            );
+            return true;
+          }
           setSharedSyncUi("Shared sheet is empty", "warn");
-        } else {
+          return true;
+        }
+
+        // Guard against partial/corrupt pulls wiping most of the catalog on refresh
+        if (!force && prevCount >= 10 && next.length < Math.max(5, Math.floor(prevCount * 0.5))) {
           setSharedSyncUi(
-            `Sheet empty — kept ${state.products.length} local product(s) · ${new Date().toLocaleTimeString()}`,
+            `Ignored suspicious pull (${next.length} vs local ${prevCount}) — kept local catalog`,
             "warn"
           );
+          return true;
+        }
+
+        state.products = next;
+        catalogPage = 1;
+        inventoryPage = 1;
+        saveState();
+        renderCatalog();
+        renderInventory();
+        setSharedSyncUi(
+          `Shared catalog loaded · ${state.products.length} product(s) · ${new Date().toLocaleTimeString()}`,
+          "ok"
+        );
+        if (!silent) {
+          showToast(`Loaded ${state.products.length} shared product(s)`, "success");
         }
         return true;
       }
-      state.products = remote.map(remoteToProduct).filter((p) => p && p.id);
-      catalogPage = 1;
-      inventoryPage = 1;
+
+      const byId = {};
+      state.products.forEach((p) => (byId[p.id] = p));
+      let added = 0,
+        updated = 0;
+      remote.forEach((r) => {
+        const product = remoteToProduct(r);
+        if (!product.id) return;
+        if (byId[product.id]) {
+          Object.assign(byId[product.id], product);
+          updated++;
+        } else {
+          state.products.push(product);
+          added++;
+        }
+      });
       saveState();
       renderCatalog();
       renderInventory();
-      setSharedSyncUi(
-        `Shared catalog loaded · ${state.products.length} product(s) · ${new Date().toLocaleTimeString()}`,
-        "ok"
-      );
-      if (!silent) {
-        showToast(`Loaded ${state.products.length} shared product(s)`, "success");
-      }
+      setSharedSyncUi(`Pulled · ${added} new, ${updated} updated · ${new Date().toLocaleTimeString()}`, "ok");
+      if (!silent) alert(`Pulled from sheet: ${added} new, ${updated} updated.`);
       return true;
+    } catch (err) {
+      console.error(err);
+      setSharedSyncUi("Could not reach shared sheet — showing this device only", "error");
+      if (!silent) alert("Could not pull from the sheet: " + err.message);
+      return false;
     }
+  })();
 
-    const byId = {};
-    state.products.forEach((p) => (byId[p.id] = p));
-    let added = 0,
-      updated = 0;
-    remote.forEach((r) => {
-      const product = remoteToProduct(r);
-      if (byId[product.id]) {
-        Object.assign(byId[product.id], product);
-        updated++;
-      } else {
-        state.products.push(product);
-        added++;
-      }
-    });
-    saveState();
-    renderCatalog();
-    renderInventory();
-    setSharedSyncUi(`Pulled · ${added} new, ${updated} updated · ${new Date().toLocaleTimeString()}`, "ok");
-    if (!silent) alert(`Pulled from sheet: ${added} new, ${updated} updated.`);
-    return true;
-  } catch (err) {
-    console.error(err);
-    setSharedSyncUi("Could not reach shared sheet — showing this device only", "error");
-    if (!silent) alert("Could not pull from the sheet: " + err.message);
-    return false;
+  syncInFlight = run;
+  try {
+    return await run;
+  } finally {
+    if (syncInFlight === run) syncInFlight = null;
   }
 }
 
 async function bootstrapSharedCatalog() {
   ensureSheetUrlSaved();
-  await syncPullAll({ replace: true, silent: true });
-  if (!state.products.length) {
-    await restoreDefaultCatalog({ silent: true, push: true });
-    return;
-  }
-  // New catalog revision: merge missing extras (and refresh known defaults), then push
-  if (num(state.settings.catalogRevision) < CATALOG_REVISION) {
-    await ensureDefaultProductsMerged({ silent: true, push: true });
+  try {
+    await syncPullAll({ replace: true, silent: true });
+    if (!state.products.length) {
+      await restoreDefaultCatalog({ silent: true, push: true });
+      return;
+    }
+    if (num(state.settings.catalogRevision) < CATALOG_REVISION) {
+      await ensureDefaultProductsMerged({ silent: true, push: true });
+    }
+  } finally {
+    bootstrapDone = true;
   }
 }
 
@@ -1952,7 +2012,7 @@ el("test-connection-btn").addEventListener("click", async () => {
 
 el("pull-sheet-btn").addEventListener("click", () => {
   ensureSheetUrlSaved();
-  syncPullAll({ replace: true });
+  syncPullAll({ replace: true, force: true });
 });
 
 el("push-sheet-btn").addEventListener("click", () => {
@@ -1993,7 +2053,7 @@ if (el("repair-sheet-btn")) {
 if (el("shared-sync-btn")) {
   el("shared-sync-btn").addEventListener("click", () => {
     ensureSheetUrlSaved();
-    syncPullAll({ replace: true });
+    syncPullAll({ replace: true, force: true });
   });
 }
 
@@ -2031,7 +2091,7 @@ bootstrapSharedCatalog();
 
 // Re-sync when returning to the tab so partners see each other's saves
 document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "visible") {
+  if (document.visibilityState === "visible" && bootstrapDone) {
     syncPullAll({ replace: true, silent: true });
   }
 });
