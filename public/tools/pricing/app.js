@@ -1513,11 +1513,41 @@ function productForSync(p) {
 }
 
 function remoteToProduct(r) {
+  // Repair legacy misaligned seed rows from the sheet
+  const colorsRaw = r.colors;
+  const colorsIsNumber =
+    typeof colorsRaw === "number" ||
+    (typeof colorsRaw === "string" &&
+      colorsRaw !== "" &&
+      !String(colorsRaw).trim().startsWith("[") &&
+      !Number.isNaN(Number(colorsRaw)));
+  if (colorsIsNumber && num(r.printHours) >= 100) {
+    r = {
+      ...r,
+      colors: "[]",
+      printHours: num(r.postMin),
+      postMin: num(r.packagingCustom) || 15,
+      designHours: num(r.inventoryMayuri) || 0,
+      designRate: num(r.inventoryRitesh) || state.settings.designRate,
+      packaging: num(r.packaging) || state.settings.packaging,
+      shipping: num(r.inventoryTotal) || 0,
+      packagingExtras: '{"externalBox":false,"sticker":false,"ribbon":false}',
+      packagingCustom: "[]",
+      inventoryRitesh: 0,
+      inventoryMayuri: 0,
+      marginPct: num(r.marginPct) || state.settings.marginPct,
+    };
+  }
+
   let colors = [];
   let packagingExtras = { externalBox: false, sticker: false, ribbon: false };
   let packagingCustom = [];
   try {
-    if (r.colors) colors = typeof r.colors === "string" ? JSON.parse(r.colors) : r.colors;
+    if (r.colors) {
+      if (Array.isArray(r.colors)) colors = r.colors;
+      else if (typeof r.colors === "string" && r.colors.trim().startsWith("["))
+        colors = JSON.parse(r.colors);
+    }
   } catch (_) {}
   try {
     if (r.packagingExtras)
@@ -1529,6 +1559,13 @@ function remoteToProduct(r) {
       packagingCustom =
         typeof r.packagingCustom === "string" ? JSON.parse(r.packagingCustom) : r.packagingCustom;
   } catch (_) {}
+
+  if (!Array.isArray(colors)) colors = [];
+  if (!packagingExtras || typeof packagingExtras !== "object") {
+    packagingExtras = { externalBox: false, sticker: false, ribbon: false };
+  }
+  if (!Array.isArray(packagingCustom)) packagingCustom = [];
+
   return migrateProduct({
     id: r.id,
     sku: r.sku || "",
@@ -1565,7 +1602,7 @@ function remoteToProduct(r) {
               : r["Stock Mayuri"]
       ),
     },
-    marginPct: num(r.marginPct),
+    marginPct: num(r.marginPct) || state.settings.marginPct,
     mrp: r.mrpSource === "manual" ? num(r.mrp) : null,
     meesho: r.meeshoSource === "manual" ? num(r.meesho) : null,
   });
@@ -1729,6 +1766,36 @@ el("push-sheet-btn").addEventListener("click", () => {
   ensureSheetUrlSaved();
   syncPushAll();
 });
+
+if (el("repair-sheet-btn")) {
+  el("repair-sheet-btn").addEventListener("click", async () => {
+    ensureSheetUrlSaved();
+    if (
+      !confirm(
+        "This will reset sheet headers to the official columns, clear extra columns, then rewrite all products cleanly. Continue?"
+      )
+    )
+      return;
+    setSharedSyncUi("Repairing sheet columns…");
+    try {
+      await sheetPost({ action: "repairHeaders" });
+      await syncPushAll(true);
+      await syncPullAll({ replace: true, silent: true });
+      setSharedSyncUi("Sheet columns repaired · catalog rewritten", "ok");
+      alert(
+        "Sheet repaired.\n\nAlso paste the latest google-apps-script.js into Apps Script and deploy a new version if you have not yet."
+      );
+    } catch (err) {
+      console.error(err);
+      setSharedSyncUi("Repair failed", "error");
+      alert(
+        "Repair failed: " +
+          err.message +
+          "\n\nUpdate Apps Script from public/tools/pricing/google-apps-script.js and deploy a new version, then try again."
+      );
+    }
+  });
+}
 
 if (el("shared-sync-btn")) {
   el("shared-sync-btn").addEventListener("click", () => {
