@@ -18,7 +18,7 @@
 
 var SHEET_NAME = "Pricing";
 /** Bump when fixing sync bugs — Test Connection shows this so you know the Web App is updated */
-var SCRIPT_VERSION = 4;
+var SCRIPT_VERSION = 5;
 
 /** Official columns only — do not add extra headers in the sheet */
 var HEADERS = [
@@ -207,9 +207,9 @@ function findRowById_(sheet, id) {
 function readAllProducts_(sheet) {
   var lastRow = sheet.getLastRow();
   if (lastRow < 2) return [];
-  // ONLY official columns — ignore extra columns to the right
-  // getRange(row, column, numRows, numColumns) — not endRow/endCol
-  var values = sheet.getRange(2, 1, lastRow - 1, HEADERS.length).getValues();
+  var numDataRows = lastRow - 1;
+  // Use offset() so row count is unambiguous (same pattern as replaceAll write)
+  var values = sheet.getRange(2, 1).offset(0, 0, numDataRows, HEADERS.length).getValues();
   var products = [];
   for (var i = 0; i < values.length; i++) {
     var row = values[i];
@@ -222,6 +222,8 @@ function readAllProducts_(sheet) {
     }
     if (empty) continue;
     var p = rowToProduct_(row);
+    // Sheets sometimes returns numeric-looking ids; always stringify
+    p.id = p.id != null && String(p.id).trim() !== "" ? String(p.id).trim() : "";
     if (!p.id) p.id = "sheet-" + (i + 2) + "-" + Date.now();
     products.push(p);
   }
