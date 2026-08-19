@@ -361,7 +361,7 @@ const DEFAULT_FILAMENT_COLORS = [
 // Bump when shipping new default colors / rates so local saves refresh once.
 const SETTINGS_REVISION = 6;
 // Bump to force-restore + push the shared product catalog once for all partners.
-const CATALOG_REVISION = 1;
+const CATALOG_REVISION = 2;
 
 const DEFAULT_SETTINGS = {
   settingsRevision: SETTINGS_REVISION,

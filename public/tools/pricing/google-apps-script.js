@@ -65,7 +65,8 @@ function ensureHeaders_(sheet) {
   sheet.setFrozenRows(1);
   var lastCol = sheet.getLastColumn();
   if (lastCol > HEADERS.length) {
-    sheet.getRange(1, HEADERS.length + 1, 1, lastCol).clearContent();
+    // getRange(row, column, numRows, numColumns)
+    sheet.getRange(1, HEADERS.length + 1, 1, lastCol - HEADERS.length).clearContent();
   }
 }
 
@@ -193,7 +194,8 @@ function findRowById_(sheet, id) {
   if (!id) return -1;
   var last = sheet.getLastRow();
   if (last < 2) return -1;
-  var ids = sheet.getRange(2, 1, last, 1).getValues();
+  // numRows = data rows only (exclude header)
+  var ids = sheet.getRange(2, 1, last - 1, 1).getValues();
   for (var i = 0; i < ids.length; i++) {
     if (String(ids[i][0]) === String(id)) return i + 2;
   }
@@ -204,7 +206,8 @@ function readAllProducts_(sheet) {
   var lastRow = sheet.getLastRow();
   if (lastRow < 2) return [];
   // ONLY official columns — ignore extra columns to the right
-  var values = sheet.getRange(2, 1, lastRow, HEADERS.length).getValues();
+  // getRange(row, column, numRows, numColumns) — not endRow/endCol
+  var values = sheet.getRange(2, 1, lastRow - 1, HEADERS.length).getValues();
   var products = [];
   for (var i = 0; i < values.length; i++) {
     var row = values[i];
@@ -227,7 +230,9 @@ function clearExtraColumns_(sheet) {
   var lastCol = sheet.getLastColumn();
   var lastRow = Math.max(sheet.getLastRow(), 1);
   if (lastCol > HEADERS.length) {
-    sheet.getRange(1, HEADERS.length + 1, lastRow, lastCol).clearContent();
+    sheet
+      .getRange(1, HEADERS.length + 1, lastRow, lastCol - HEADERS.length)
+      .clearContent();
   }
 }
 
@@ -291,7 +296,8 @@ function doPost(e) {
       if (existing === -1) {
         sheet.appendRow(row);
       } else {
-        sheet.getRange(existing, 1, existing, HEADERS.length).setValues([row]);
+        // 1 row × HEADERS.length cols (4-arg getRange uses numRows/numColumns)
+        sheet.getRange(existing, 1, 1, HEADERS.length).setValues([row]);
       }
       return jsonOut_({ ok: true, action: "upsert", id: p.id });
     }
@@ -309,11 +315,13 @@ function doPost(e) {
       var products = data.products || [];
       var last = sheet.getLastRow();
       if (last > 1) {
-        sheet.getRange(2, 1, last, HEADERS.length).clearContent();
+        // Clear data rows only: numRows = last - 1
+        sheet.getRange(2, 1, last - 1, HEADERS.length).clearContent();
       }
       if (products.length) {
         var rows = products.map(productToRow_);
-        sheet.getRange(2, 1, products.length + 1, HEADERS.length).setValues(rows);
+        // Start at row 2; write exactly products.length rows (not endRow)
+        sheet.getRange(2, 1, products.length, HEADERS.length).setValues(rows);
       }
       return jsonOut_({ ok: true, action: "replaceAll", count: products.length });
     }
