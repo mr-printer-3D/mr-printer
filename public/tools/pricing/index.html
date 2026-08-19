@@ -263,6 +263,14 @@
 
     <!-- CATALOG -->
     <section id="tab-catalog" class="tab-panel">
+      <div class="shared-sync-bar" id="shared-sync-bar">
+        <div class="shared-sync-copy">
+          <strong>Shared catalog</strong>
+          <span id="shared-sync-msg">Syncing with Google Sheet for you &amp; Ritesh…</span>
+        </div>
+        <button type="button" class="btn btn-sm btn-ghost" id="shared-sync-btn">Sync now</button>
+      </div>
+
       <div class="stats-row">
         <div class="stat-card">
           <span class="stat-label">Products</span>
@@ -493,7 +501,8 @@
           <p class="hint">
             Connect your
             <a href="https://docs.google.com/spreadsheets/d/1HaJIjWntMd16vnSAFa9wASb_sWds2YwmrN4yGmGZ84M/edit" target="_blank" rel="noopener">Google Sheet</a>
-            via Apps Script. Catalog <strong>and inventory</strong> (Ritesh / Mayuri) sync to the same sheet.
+            via Apps Script. The sheet is the <strong>shared source of truth</strong> — both partners
+            see the same products. Catalog auto-syncs on open and when you save.
             Redeploy after updating <code>google-apps-script.js</code>. API uses <code>?api=1</code>.
           </p>
           <label class="field big">
