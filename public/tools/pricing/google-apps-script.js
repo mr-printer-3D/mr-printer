@@ -2,22 +2,23 @@
   ============================================================================
   Mr. Printer Studio — Google Sheet Sync Bridge (Pricing + Inventory)
   ============================================================================
-  Paste this into: Google Sheet → Extensions → Apps Script
-  Then Deploy → New deployment → Web app
+  Paste into: Google Sheet → Extensions → Apps Script
+  Deploy → New deployment → Web app
     Execute as: Me
     Who has access: Anyone
 
-  Sheet used:
+  Sheet:
   https://docs.google.com/spreadsheets/d/1HaJIjWntMd16vnSAFa9wASb_sWds2YwmrN4yGmGZ84M/edit
 
   API:
-    GET  ?api=1              → { ok, products: [...] }
-    POST text/plain JSON     → upsert | delete | replaceAll
+    GET  ?api=1
+    POST text/plain JSON → upsert | delete | replaceAll | repairHeaders
   ============================================================================
 */
 
-var SHEET_NAME = "Pricing"; // create/rename tab to this, or first sheet is used as fallback
+var SHEET_NAME = "Pricing";
 
+/** Official columns only — do not add extra headers in the sheet */
 var HEADERS = [
   "id",
   "sku",
@@ -52,48 +53,31 @@ function getSheet_() {
   var sheet = ss.getSheetByName(SHEET_NAME);
   if (!sheet) {
     sheet = ss.getSheets()[0];
-    // If the first sheet is empty / untitled, rename it for clarity
     if (sheet.getLastRow() === 0) sheet.setName(SHEET_NAME);
   }
   ensureHeaders_(sheet);
   return sheet;
 }
 
+/** Keep row 1 exactly = HEADERS. Clear any extra header cells to the right. */
 function ensureHeaders_(sheet) {
-  var lastCol = Math.max(sheet.getLastColumn(), HEADERS.length);
-  var existing = [];
-  if (sheet.getLastRow() >= 1 && sheet.getLastColumn() >= 1) {
-    existing = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-  }
-  var needsWrite = existing.length < HEADERS.length;
-  if (!needsWrite) {
-    for (var i = 0; i < HEADERS.length; i++) {
-      if (String(existing[i] || "") !== HEADERS[i]) {
-        needsWrite = true;
-        break;
-      }
-    }
-  }
-  if (needsWrite) {
-    sheet.getRange(1, 1, 1, HEADERS.length).setValues([HEADERS]);
-    sheet.setFrozenRows(1);
+  sheet.getRange(1, 1, 1, HEADERS.length).setValues([HEADERS]);
+  sheet.setFrozenRows(1);
+  var lastCol = sheet.getLastColumn();
+  if (lastCol > HEADERS.length) {
+    sheet.getRange(1, HEADERS.length + 1, 1, lastCol).clearContent();
   }
 }
 
-function rowToProduct_(headers, row) {
+function rowToProduct_(row) {
   var p = {};
-  for (var i = 0; i < headers.length; i++) {
-    var key = String(headers[i] || "").trim();
-    if (!key) continue;
-    p[key] = row[i];
+  for (var i = 0; i < HEADERS.length; i++) {
+    p[HEADERS[i]] = row[i] != null ? row[i] : "";
   }
-  // Friendly aliases → canonical inventory keys
-  if (p.inventoryRitesh == null || p.inventoryRitesh === "") {
-    p.inventoryRitesh = firstNum_(p, ["Stock Ritesh", "stockRitesh", "ritesh", "Ritesh"]);
-  }
-  if (p.inventoryMayuri == null || p.inventoryMayuri === "") {
-    p.inventoryMayuri = firstNum_(p, ["Stock Mayuri", "stockMayuri", "mayuri", "Mayuri"]);
-  }
+
+  // Repair legacy misaligned seed rows (old dump: colors=waste, printHours=filament, postMin=hours…)
+  p = repairLegacyProduct_(p);
+
   var r = Number(p.inventoryRitesh) || 0;
   var m = Number(p.inventoryMayuri) || 0;
   p.inventoryRitesh = r;
@@ -102,11 +86,71 @@ function rowToProduct_(headers, row) {
   return p;
 }
 
-function firstNum_(obj, keys) {
-  for (var i = 0; i < keys.length; i++) {
-    if (obj[keys[i]] != null && obj[keys[i]] !== "") return obj[keys[i]];
+/**
+ * Old sheet rows put values under the wrong headers.
+ * Detect: colors is a number (e.g. 10) and printHours looks like filament ₹/kg (e.g. 800).
+ */
+function repairLegacyProduct_(p) {
+  var colorsVal = p.colors;
+  var colorsIsNumber =
+    typeof colorsVal === "number" ||
+    (typeof colorsVal === "string" &&
+      colorsVal !== "" &&
+      !String(colorsVal).trim().match(/^\[/) &&
+      !isNaN(Number(colorsVal)));
+  var hoursLikeFilament = Number(p.printHours) >= 100;
+
+  if (!(colorsIsNumber && hoursLikeFilament)) return p;
+
+  // Remap from old column order dumped into new headers
+  var weight = Number(p.weight) || 0;
+  var printHours = Number(p.postMin) || 0; // was actual hours
+  var postMin = Number(p.packagingCustom) || 15;
+  var packaging = Number(p.packaging) || 10;
+  var marginPct = Number(p.marginPct) || 50;
+  var designRate = Number(p.inventoryRitesh) || 50;
+  var designHours = Number(p.inventoryMayuri) || 0;
+  var shipping = Number(p.inventoryTotal) || 0;
+
+  // Prefer real MRP/Meesho if present further right in older dumps (materialCost sometimes held junk)
+  var mrp = Number(p.mrp);
+  var meesho = Number(p.meesho);
+  var mrpSource = String(p.mrpSource || "");
+  var meeshoSource = String(p.meeshoSource || "");
+
+  // In many corrupt rows, true MRP/Meesho sit in leftover human columns; keep manual if already set
+  if (!mrp && Number(p.sellingPrice) > 100 && Number(p.sellingPrice) % 1 === 0) {
+    // no-op — keep empty
   }
-  return 0;
+
+  return {
+    id: p.id,
+    sku: p.sku || "",
+    name: p.name || "",
+    dims: p.dims || "",
+    weight: weight,
+    colors: "[]",
+    printHours: printHours,
+    postMin: postMin,
+    designHours: designHours,
+    designRate: designRate,
+    packaging: packaging,
+    shipping: shipping,
+    packagingExtras: '{"externalBox":false,"sticker":false,"ribbon":false}',
+    packagingCustom: "[]",
+    inventoryRitesh: 0,
+    inventoryMayuri: 0,
+    inventoryTotal: 0,
+    marginPct: marginPct,
+    materialCost: 0,
+    finalTotalCost: 0,
+    sellingPrice: 0,
+    mrp: mrp || 0,
+    mrpSource: mrpSource || (mrp ? "manual" : "auto"),
+    meesho: meesho || 0,
+    meeshoSource: meeshoSource || (meesho ? "manual" : "auto"),
+    updatedAt: p.updatedAt || "",
+  };
 }
 
 function productToRow_(p) {
@@ -158,14 +202,12 @@ function findRowById_(sheet, id) {
 
 function readAllProducts_(sheet) {
   var lastRow = sheet.getLastRow();
-  var lastCol = Math.max(sheet.getLastColumn(), HEADERS.length);
   if (lastRow < 2) return [];
-  var headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
-  var values = sheet.getRange(2, 1, lastRow, lastCol).getValues();
+  // ONLY official columns — ignore extra columns to the right
+  var values = sheet.getRange(2, 1, lastRow, HEADERS.length).getValues();
   var products = [];
   for (var i = 0; i < values.length; i++) {
     var row = values[i];
-    // skip fully empty rows
     var empty = true;
     for (var c = 0; c < row.length; c++) {
       if (row[c] !== "" && row[c] != null) {
@@ -174,11 +216,19 @@ function readAllProducts_(sheet) {
       }
     }
     if (empty) continue;
-    var p = rowToProduct_(headers, row);
+    var p = rowToProduct_(row);
     if (!p.id) p.id = "sheet-" + (i + 2) + "-" + Date.now();
     products.push(p);
   }
   return products;
+}
+
+function clearExtraColumns_(sheet) {
+  var lastCol = sheet.getLastColumn();
+  var lastRow = Math.max(sheet.getLastRow(), 1);
+  if (lastCol > HEADERS.length) {
+    sheet.getRange(1, HEADERS.length + 1, lastRow, lastCol).clearContent();
+  }
 }
 
 function jsonOut_(obj) {
@@ -222,6 +272,17 @@ function doPost(e) {
     var action = data.action;
     var sheet = getSheet_();
 
+    if (action === "repairHeaders") {
+      ensureHeaders_(sheet);
+      clearExtraColumns_(sheet);
+      return jsonOut_({
+        ok: true,
+        action: "repairHeaders",
+        headers: HEADERS,
+        message: "Headers reset. Extra columns cleared. Re-push catalog from the pricing tool.",
+      });
+    }
+
     if (action === "upsert") {
       var p = data.product || {};
       if (!p.id) throw new Error("Product id is required.");
@@ -243,12 +304,12 @@ function doPost(e) {
     }
 
     if (action === "replaceAll") {
+      ensureHeaders_(sheet);
+      clearExtraColumns_(sheet);
       var products = data.products || [];
       var last = sheet.getLastRow();
       if (last > 1) {
-        sheet
-          .getRange(2, 1, last, Math.max(sheet.getLastColumn(), HEADERS.length))
-          .clearContent();
+        sheet.getRange(2, 1, last, HEADERS.length).clearContent();
       }
       if (products.length) {
         var rows = products.map(productToRow_);
