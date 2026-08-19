@@ -17,6 +17,8 @@
 */
 
 var SHEET_NAME = "Pricing";
+/** Bump when fixing sync bugs — Test Connection shows this so you know the Web App is updated */
+var SCRIPT_VERSION = 4;
 
 /** Official columns only — do not add extra headers in the sheet */
 var HEADERS = [
@@ -262,11 +264,15 @@ function doGet(e) {
     var api = e && e.parameter && e.parameter.api;
     if (String(api) === "1") {
       var sheet = getSheet_();
-      return jsonOut_({ ok: true, products: readAllProducts_(sheet) });
+      return jsonOut_({
+        ok: true,
+        scriptVersion: SCRIPT_VERSION,
+        products: readAllProducts_(sheet),
+      });
     }
     return HtmlService.createHtmlOutput(hubHtml_());
   } catch (err) {
-    return jsonOut_({ ok: false, error: String(err) });
+    return jsonOut_({ ok: false, error: String(err), scriptVersion: SCRIPT_VERSION });
   }
 }
 
@@ -283,6 +289,7 @@ function doPost(e) {
       return jsonOut_({
         ok: true,
         action: "repairHeaders",
+        scriptVersion: SCRIPT_VERSION,
         headers: HEADERS,
         message: "Headers reset. Extra columns cleared. Re-push catalog from the pricing tool.",
       });
@@ -296,38 +303,44 @@ function doPost(e) {
       if (existing === -1) {
         sheet.appendRow(row);
       } else {
-        // 1 row × HEADERS.length cols (4-arg getRange uses numRows/numColumns)
-        sheet.getRange(existing, 1, 1, HEADERS.length).setValues([row]);
+        sheet.getRange(existing, 1).offset(0, 0, 1, HEADERS.length).setValues([row]);
       }
-      return jsonOut_({ ok: true, action: "upsert", id: p.id });
+      return jsonOut_({ ok: true, action: "upsert", id: p.id, scriptVersion: SCRIPT_VERSION });
     }
 
     if (action === "delete") {
       var delId = data.id;
       var delRow = findRowById_(sheet, delId);
       if (delRow !== -1) sheet.deleteRow(delRow);
-      return jsonOut_({ ok: true, action: "delete", id: delId });
+      return jsonOut_({ ok: true, action: "delete", id: delId, scriptVersion: SCRIPT_VERSION });
     }
 
     if (action === "replaceAll") {
       ensureHeaders_(sheet);
       clearExtraColumns_(sheet);
       var products = data.products || [];
+
+      // Delete existing data rows (deleteRows is unambiguous — not getRange sizing)
       var last = sheet.getLastRow();
       if (last > 1) {
-        // Clear data rows only: numRows = last - 1
-        sheet.getRange(2, 1, last - 1, HEADERS.length).clearContent();
+        sheet.deleteRows(2, last - 1);
       }
+
       if (products.length) {
         var rows = products.map(productToRow_);
-        // Start at row 2; write exactly products.length rows (not endRow)
-        sheet.getRange(2, 1, products.length, HEADERS.length).setValues(rows);
+        // offset(rowOffset, colOffset, numRows, numColumns) — matches setValues exactly
+        sheet.getRange(2, 1).offset(0, 0, rows.length, HEADERS.length).setValues(rows);
       }
-      return jsonOut_({ ok: true, action: "replaceAll", count: products.length });
+      return jsonOut_({
+        ok: true,
+        action: "replaceAll",
+        count: products.length,
+        scriptVersion: SCRIPT_VERSION,
+      });
     }
 
     throw new Error("Unknown action: " + action);
   } catch (err) {
-    return jsonOut_({ ok: false, error: String(err) });
+    return jsonOut_({ ok: false, error: String(err), scriptVersion: SCRIPT_VERSION });
   }
 }
