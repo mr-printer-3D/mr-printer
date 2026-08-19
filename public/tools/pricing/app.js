@@ -1583,6 +1583,15 @@ function ensureSheetUrlSaved() {
   return url;
 }
 
+/** Reset both partners onto the studio default Web App URL (clears stale deployment links). */
+function resetToCanonicalSheetUrl() {
+  const url = String(DEFAULT_SETTINGS.sheetUrl || "").trim();
+  state.settings.sheetUrl = url;
+  if (el("s-sheeturl")) el("s-sheeturl").value = url;
+  saveState();
+  return url;
+}
+
 function setSharedSyncUi(message, kind) {
   const bar = el("shared-sync-bar");
   const msg = el("shared-sync-msg");
@@ -1655,11 +1664,11 @@ async function sheetGetAll() {
     );
   }
   if (!data.ok) throw new Error(data.error || "Sheet sync failed.");
-  if (data.scriptVersion != null) {
-    state.settings.lastScriptVersion = data.scriptVersion;
-  }
+  const ver = data.scriptVersion != null ? num(data.scriptVersion) : 0;
+  state.settings.lastScriptVersion = ver;
+  saveState();
   const products = Array.isArray(data.products) ? data.products : [];
-  return products;
+  return { products, scriptVersion: ver, raw: data };
 }
 
 function productForSync(p) {
@@ -1881,7 +1890,8 @@ async function syncPullAll(opts) {
     }
     setSharedSyncUi(replace ? "Loading shared catalog…" : "Pulling from sheet…");
     try {
-      const remote = await sheetGetAll();
+      const remoteResult = await sheetGetAll();
+      const remote = remoteResult.products || [];
       const prevCount = state.products.length;
 
       if (replace) {
@@ -1971,7 +1981,12 @@ async function syncPullAll(opts) {
 async function bootstrapSharedCatalog() {
   ensureSheetUrlSaved();
   try {
-    await syncPullAll({ replace: true, silent: true });
+    let result = await syncPullAll({ replace: true, silent: true });
+    // If this device still talks to an old Web App, snap to canonical URL and retry
+    if (num(state.settings.lastScriptVersion) < REQUIRED_SCRIPT_VERSION) {
+      resetToCanonicalSheetUrl();
+      result = await syncPullAll({ replace: true, silent: true, force: true });
+    }
     if (!state.products.length) {
       await restoreDefaultCatalog({ silent: true, push: true });
       return;
@@ -1985,22 +2000,38 @@ async function bootstrapSharedCatalog() {
 }
 
 el("test-connection-btn").addEventListener("click", async () => {
-  const url = ensureSheetUrlSaved();
+  let url = ensureSheetUrlSaved();
   if (!url) {
     alert("Please paste your Apps Script Web App URL first.");
     return;
   }
   setSyncStatus("Testing connection…");
   try {
-    const products = await sheetGetAll();
-    const ver = num(state.settings.lastScriptVersion);
+    let { products, scriptVersion: ver } = await sheetGetAll();
+
+    // Stale localStorage URL → auto-switch to studio default and retry once
+    if (ver < REQUIRED_SCRIPT_VERSION) {
+      const canonical = resetToCanonicalSheetUrl();
+      if (canonical && canonical !== url) {
+        url = canonical;
+        ({ products, scriptVersion: ver } = await sheetGetAll());
+      }
+    }
+
     const verOk = ver >= REQUIRED_SCRIPT_VERSION;
     setSyncStatus(verOk ? `Connected ✓ script v${ver}` : `Connected — old script v${ver || "?"}`);
     alert(
       verOk
         ? `Connected! Apps Script v${ver}. Found ${products.length} product row(s).`
-        : `Connected, but Apps Script is OLD (v${ver || "unknown"}; need v${REQUIRED_SCRIPT_VERSION}+).\n\n` +
-            `Paste the latest google-apps-script.js, then Deploy → Manage deployments → Edit → New version → Deploy.\n\n` +
+        : `This browser is still hitting an OLD Web App (v${ver || "unknown"}; need v${REQUIRED_SCRIPT_VERSION}+).\n\n` +
+            `Same Gmail does not matter — each browser stores its own URL.\n\n` +
+            `Fix for Ritesh:\n` +
+            `1. Hard-refresh (Ctrl+Shift+R)\n` +
+            `2. Open the sheet → Apps Script → Deploy → Manage deployments\n` +
+            `3. Copy the Web App URL from the deployment that is Version 5\n` +
+            `4. Paste it into Pricing → Settings → Apps Script Web App URL → Save\n` +
+            `5. Test connection again\n\n` +
+            `URL currently used:\n${url}\n\n` +
             `Found ${products.length} product row(s).`
     );
   } catch (err) {
