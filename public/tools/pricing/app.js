@@ -17,6 +17,9 @@ let sortDir = 1;
 let skuManual = false;
 let draftColors = []; // [{id, colorId, name, price, weight, swatch}]
 let draftCustomPack = []; // [{id, name, cost}]
+const PAGE_SIZE = 50;
+let catalogPage = 1;
+let inventoryPage = 1;
 
 /* ---------------------------- Persistence ---------------------------- */
 
@@ -111,8 +114,40 @@ function loadState() {
     ...DEFAULT_SETTINGS,
     filamentColors: DEFAULT_FILAMENT_COLORS.map((c) => ({ ...c })),
   };
-  state.products = SEED_PRODUCTS.map(migrateProduct);
+  state.products = getDefaultCatalogProducts().map(migrateProduct);
   saveState();
+}
+
+function applyCatalogDefaults(products) {
+  return products.map(migrateProduct).map((p) => {
+    if (p.marginPct == null) p.marginPct = state.settings.marginPct;
+    if (p.packaging == null || p.packaging === "") p.packaging = state.settings.packaging;
+    return p;
+  });
+}
+
+/** Restore built-in catalog (seed + extras) and optionally push to shared sheet. */
+async function restoreDefaultCatalog(opts) {
+  const silent = !!(opts && opts.silent);
+  const push = opts && opts.push !== false;
+  state.products = applyCatalogDefaults(getDefaultCatalogProducts());
+  catalogPage = 1;
+  inventoryPage = 1;
+  saveState();
+  renderCatalog();
+  renderInventory();
+  if (push && isSheetConnected()) {
+    await syncPushAll(true);
+    setSharedSyncUi(
+      `Restored ${state.products.length} products to shared sheet · ${new Date().toLocaleTimeString()}`,
+      "ok"
+    );
+  } else {
+    setSharedSyncUi(`Restored ${state.products.length} products on this device`, "ok");
+  }
+  if (!silent) {
+    showToast(`Restored ${state.products.length} products`, "success");
+  }
 }
 
 function saveState() {
@@ -861,6 +896,33 @@ function colorDots(colors) {
     .join("")}</div>`;
 }
 
+function renderPager(containerId, page, totalItems, setPageFn) {
+  const box = el(containerId);
+  if (!box) return page;
+  const totalPages = Math.max(1, Math.ceil(totalItems / PAGE_SIZE));
+  let safePage = Math.min(Math.max(1, page), totalPages);
+  if (totalItems <= PAGE_SIZE) {
+    box.hidden = true;
+    box.innerHTML = "";
+    return 1;
+  }
+  box.hidden = false;
+  const start = (safePage - 1) * PAGE_SIZE + 1;
+  const end = Math.min(safePage * PAGE_SIZE, totalItems);
+  box.innerHTML = `
+    <button type="button" class="btn btn-ghost pager-btn" ${safePage <= 1 ? "disabled" : ""} data-pager="-1">Prev</button>
+    <span class="pager-info">Page ${safePage} of ${totalPages} · ${start}–${end} of ${totalItems}</span>
+    <button type="button" class="btn btn-ghost pager-btn" ${safePage >= totalPages ? "disabled" : ""} data-pager="1">Next</button>
+  `;
+  box.querySelectorAll("[data-pager]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const delta = num(btn.getAttribute("data-pager"));
+      setPageFn(safePage + delta);
+    });
+  });
+  return safePage;
+}
+
 function renderCatalog() {
   const body = el("catalog-body");
   const query = el("search-input").value.trim().toLowerCase();
@@ -888,13 +950,21 @@ function renderCatalog() {
   if (!rows.length) {
     const msg =
       state.products.length === 0
-        ? "No products yet. Add one from the Calculator tab."
+        ? "No products yet. Use Restore catalog, or add one from the Calculator tab."
         : "No products match your search.";
     body.innerHTML = `<tr><td colspan="7"><div class="empty-state">${msg}</div></td></tr>`;
+    renderPager("catalog-pager", 1, 0, () => {});
     return;
   }
 
-  body.innerHTML = rows
+  catalogPage = renderPager("catalog-pager", catalogPage, rows.length, (p) => {
+    catalogPage = p;
+    renderCatalog();
+  });
+  const start = (catalogPage - 1) * PAGE_SIZE;
+  const pageRows = rows.slice(start, start + PAGE_SIZE);
+
+  body.innerHTML = pageRows
     .map(({ p, c }) => {
       const margin = c.finalTotalCost > 0 ? ((c.profit / c.finalTotalCost) * 100).toFixed(0) : 0;
       return `
@@ -973,7 +1043,23 @@ document.querySelectorAll("#catalog-table thead th[data-sort]").forEach((th) => 
   });
 });
 
-el("search-input").addEventListener("input", renderCatalog);
+el("search-input").addEventListener("input", () => {
+  catalogPage = 1;
+  renderCatalog();
+});
+
+if (el("restore-catalog-btn")) {
+  el("restore-catalog-btn").addEventListener("click", async () => {
+    if (
+      !confirm(
+        "Restore the built-in product catalog (seed + extras) and push it to the shared Google Sheet? This replaces the current catalog."
+      )
+    ) {
+      return;
+    }
+    await restoreDefaultCatalog({ push: true });
+  });
+}
 
 /* ---------------------------- Inventory tab ---------------------------- */
 
@@ -1004,10 +1090,18 @@ function renderInventory() {
   const body = el("inventory-body");
   if (!products.length) {
     body.innerHTML = `<tr><td colspan="4"><div class="empty-state">No products to show.</div></td></tr>`;
+    renderPager("inventory-pager", 1, 0, () => {});
     return;
   }
 
-  body.innerHTML = products
+  inventoryPage = renderPager("inventory-pager", inventoryPage, products.length, (p) => {
+    inventoryPage = p;
+    renderInventory();
+  });
+  const start = (inventoryPage - 1) * PAGE_SIZE;
+  const pageProducts = products.slice(start, start + PAGE_SIZE);
+
+  body.innerHTML = pageProducts
     .map((p) => {
       const r = num(p.inventory && p.inventory.ritesh);
       const m = num(p.inventory && p.inventory.mayuri);
@@ -1066,7 +1160,10 @@ function setInventory(id, warehouse, value) {
   queueInventorySync(p);
 }
 
-el("inv-search").addEventListener("input", renderInventory);
+el("inv-search").addEventListener("input", () => {
+  inventoryPage = 1;
+  renderInventory();
+});
 
 el("inv-pull-btn").addEventListener("click", () => {
   ensureSheetUrlSaved();
@@ -1451,6 +1548,7 @@ function setSharedSyncUi(message, kind) {
   if (bar) {
     bar.classList.toggle("is-ok", kind === "ok");
     bar.classList.toggle("is-error", kind === "error");
+    bar.classList.toggle("is-warn", kind === "warn");
   }
   setSyncStatus(message);
 }
@@ -1692,7 +1790,21 @@ async function syncPullAll(opts) {
   try {
     const remote = await sheetGetAll();
     if (replace) {
+      // Never wipe a local catalog with an empty sheet (prevents accidental wipe)
+      if (!remote.length) {
+        if (!state.products.length) {
+          setSharedSyncUi("Shared sheet is empty", "warn");
+        } else {
+          setSharedSyncUi(
+            `Sheet empty — kept ${state.products.length} local product(s) · ${new Date().toLocaleTimeString()}`,
+            "warn"
+          );
+        }
+        return true;
+      }
       state.products = remote.map(remoteToProduct).filter((p) => p && p.id);
+      catalogPage = 1;
+      inventoryPage = 1;
       saveState();
       renderCatalog();
       renderInventory();
@@ -1737,6 +1849,9 @@ async function syncPullAll(opts) {
 async function bootstrapSharedCatalog() {
   ensureSheetUrlSaved();
   await syncPullAll({ replace: true, silent: true });
+  if (!state.products.length) {
+    await restoreDefaultCatalog({ silent: true, push: true });
+  }
 }
 
 el("test-connection-btn").addEventListener("click", async () => {
