@@ -782,6 +782,23 @@ details .more-inner { padding-top: 14px; }
 .inv-hint { margin: 0; }
 
 .table-wrap { overflow-x: auto; }
+.table-pager {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 14px;
+  flex-wrap: wrap;
+}
+.table-pager[hidden] { display: none !important; }
+.pager-info {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.pager-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
 table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
 thead th {
   text-align: left;
@@ -1028,6 +1045,10 @@ tbody tr:last-child td { border-bottom: none; }
 .shared-sync-bar.is-ok {
   border-color: #b7e0c2;
   background: #f3fbf5;
+}
+.shared-sync-bar.is-warn {
+  border-color: #e8d48b;
+  background: #fffbeb;
 }
 
 

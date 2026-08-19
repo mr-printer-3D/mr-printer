@@ -297,6 +297,7 @@
             <input type="search" id="search-input" placeholder="Search products or SKU…" />
           </div>
           <div class="toolbar-actions">
+            <button type="button" class="btn btn-ghost" id="restore-catalog-btn">Restore catalog</button>
             <button class="btn btn-ghost" id="export-btn">Export</button>
             <label class="btn btn-ghost file-btn">
               Import
@@ -321,6 +322,7 @@
             <tbody id="catalog-body"></tbody>
           </table>
         </div>
+        <div class="table-pager" id="catalog-pager" hidden></div>
       </div>
     </section>
 
@@ -370,6 +372,7 @@
             <tbody id="inventory-body"></tbody>
           </table>
         </div>
+        <div class="table-pager" id="inventory-pager" hidden></div>
       </div>
     </section>
 
