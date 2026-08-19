@@ -131,6 +131,7 @@ async function restoreDefaultCatalog(opts) {
   const silent = !!(opts && opts.silent);
   const push = opts && opts.push !== false;
   state.products = applyCatalogDefaults(getDefaultCatalogProducts());
+  state.settings.catalogRevision = CATALOG_REVISION;
   catalogPage = 1;
   inventoryPage = 1;
   saveState();
@@ -1848,6 +1849,11 @@ async function syncPullAll(opts) {
 
 async function bootstrapSharedCatalog() {
   ensureSheetUrlSaved();
+  // One-time force restore when a new catalog revision ships (e.g. re-adding products)
+  if (num(state.settings.catalogRevision) < CATALOG_REVISION) {
+    await restoreDefaultCatalog({ silent: true, push: true });
+    return;
+  }
   await syncPullAll({ replace: true, silent: true });
   if (!state.products.length) {
     await restoreDefaultCatalog({ silent: true, push: true });

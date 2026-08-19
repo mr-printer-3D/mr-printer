@@ -7,7 +7,7 @@ const SEED_PRODUCTS = [
   ["MRPFHKP01","Forever Heart Keychain","9x4x1",10,0.6,10,299,99],
   ["MRPSDBKP1","Shadow Dragon Buddy Keychain","14x5x1",9.8,1,10,499,129],
   ["MRPSDBKC1","Snow Dragon Buddy Keychain","14x4x1",13,1,10,499,129],
-  ["","Custom Name Keychain","",50,2.6,10,null,null],
+  ["","Custom Name Keychain","",50,2.6,10,299,null],
   ["","Dudu Bubu Keychain","15x7.5x2.5",6,0.4,15,499,149],
   ["","Round Coaster","15x7.5x2.5",24.5,0.875,15,499,149],
   ["","Daisy Keychain","15x7.5x2.5",5.85,0.3,15,499,149],
@@ -210,7 +210,7 @@ const EXTRA_CATALOG_PRODUCTS = [
     packaging: 10,
     shipping: 0,
     packagingExtras: { externalBox: false, sticker: false, ribbon: false },
-    packagingCustom: [{ id: "pc-magnet-1", name: "Magnet", cost: 10 }],
+    packagingCustom: [{ id: "pc-1786286972073-609", name: "Magnet", cost: 10 }],
     inventory: { ritesh: 3, mayuri: 0 },
     marginPct: 50,
     mrp: 299,
@@ -233,7 +233,7 @@ const EXTRA_CATALOG_PRODUCTS = [
     packaging: 10,
     shipping: 0,
     packagingExtras: { externalBox: false, sticker: false, ribbon: false },
-    packagingCustom: [{ id: "pc-magnet-2", name: "Magnet", cost: 7 }],
+    packagingCustom: [{ id: "pc-1786287071177-70", name: "Magnet", cost: 7 }],
     inventory: { ritesh: 2, mayuri: 0 },
     marginPct: 50,
     mrp: 299,
@@ -286,7 +286,7 @@ const EXTRA_CATALOG_PRODUCTS = [
   {
     id: "p-1786476316467-993",
     sku: "MRSBH",
-    name: "Sony Battery Holder",
+    name: "sony battery holder",
     dims: "",
     weight: 111,
     colors: [
@@ -300,7 +300,7 @@ const EXTRA_CATALOG_PRODUCTS = [
     packaging: 10,
     shipping: 0,
     packagingExtras: { externalBox: true, sticker: false, ribbon: false },
-    packagingCustom: [{ id: "pc-screw-1", name: "Screw", cost: 50 }],
+    packagingCustom: [{ id: "pc-1786476300663-524", name: "screw", cost: 50 }],
     inventory: { ritesh: 0, mayuri: 0 },
     marginPct: 50,
     mrp: 1199,
@@ -360,9 +360,12 @@ const DEFAULT_FILAMENT_COLORS = [
 
 // Bump when shipping new default colors / rates so local saves refresh once.
 const SETTINGS_REVISION = 6;
+// Bump to force-restore + push the shared product catalog once for all partners.
+const CATALOG_REVISION = 1;
 
 const DEFAULT_SETTINGS = {
   settingsRevision: SETTINGS_REVISION,
+  catalogRevision: 0,
   theme: "light",
   filamentPrice: 700,
   wastePct: 10,
