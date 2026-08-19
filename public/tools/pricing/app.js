@@ -151,6 +151,47 @@ async function restoreDefaultCatalog(opts) {
   }
 }
 
+/** Merge default/extra products by id (add missing + refresh known rows). Keeps other custom products. */
+function upsertProductsById(list) {
+  const byId = {};
+  state.products.forEach((p) => {
+    byId[p.id] = p;
+  });
+  let added = 0;
+  let updated = 0;
+  applyCatalogDefaults(list).forEach((p) => {
+    if (byId[p.id]) {
+      Object.assign(byId[p.id], p);
+      updated++;
+    } else {
+      state.products.push(p);
+      byId[p.id] = p;
+      added++;
+    }
+  });
+  return { added, updated };
+}
+
+/** Ensure seed + extras exist, then push shared sheet. */
+async function ensureDefaultProductsMerged(opts) {
+  const silent = !!(opts && opts.silent);
+  const push = opts && opts.push !== false;
+  const { added, updated } = upsertProductsById(getDefaultCatalogProducts());
+  state.settings.catalogRevision = CATALOG_REVISION;
+  catalogPage = 1;
+  inventoryPage = 1;
+  saveState();
+  renderCatalog();
+  renderInventory();
+  if (push && isSheetConnected()) {
+    await syncPushAll(true);
+  }
+  const msg = `Catalog synced · ${added} added, ${updated} updated · ${state.products.length} total`;
+  setSharedSyncUi(msg + " · " + new Date().toLocaleTimeString(), "ok");
+  if (!silent) showToast(msg, "success");
+  return { added, updated };
+}
+
 function saveState() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 }
@@ -1849,14 +1890,14 @@ async function syncPullAll(opts) {
 
 async function bootstrapSharedCatalog() {
   ensureSheetUrlSaved();
-  // One-time force restore when a new catalog revision ships (e.g. re-adding products)
-  if (num(state.settings.catalogRevision) < CATALOG_REVISION) {
-    await restoreDefaultCatalog({ silent: true, push: true });
-    return;
-  }
   await syncPullAll({ replace: true, silent: true });
   if (!state.products.length) {
     await restoreDefaultCatalog({ silent: true, push: true });
+    return;
+  }
+  // New catalog revision: merge missing extras (and refresh known defaults), then push
+  if (num(state.settings.catalogRevision) < CATALOG_REVISION) {
+    await ensureDefaultProductsMerged({ silent: true, push: true });
   }
 }
 
