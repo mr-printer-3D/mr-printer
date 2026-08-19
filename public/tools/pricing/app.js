@@ -1618,7 +1618,30 @@ async function sheetGetAll() {
   const res = await fetch(apiUrl(url), { method: "GET", cache: "no-store" });
   const data = await res.json();
   if (!data.ok) throw new Error(data.error || "Sheet sync failed.");
+  if (data.scriptVersion != null) {
+    state.settings.lastScriptVersion = data.scriptVersion;
+  }
   return data.products || [];
+}
+
+const REQUIRED_SCRIPT_VERSION = 4;
+
+function sheetSyncErrorHint(errMsg) {
+  const msg = String(errMsg || "");
+  if (/number of rows/i.test(msg) || /does not match/i.test(msg)) {
+    return (
+      msg +
+      "\n\nYour Apps Script Web App is still on the OLD code.\n" +
+      "1. Open google-apps-script.js in this project\n" +
+      "2. Paste ALL of it into Extensions → Apps Script\n" +
+      "3. Deploy → Manage deployments → Edit (pencil) → Version: New version → Deploy\n" +
+      "4. Settings → Test connection — it must say script v" +
+      REQUIRED_SCRIPT_VERSION +
+      "+\n" +
+      "5. Then Push / Restore catalog again"
+    );
+  }
+  return msg;
 }
 
 function productForSync(p) {
@@ -1810,8 +1833,8 @@ async function syncPushAll(silent) {
     showToast("Pushed full catalog", "success");
   } catch (err) {
     console.error(err);
-    setSharedSyncUi("Sync failed ⚠️", "error");
-    alert("Could not push to the sheet: " + err.message);
+    setSharedSyncUi("Sync failed ⚠️ — update Apps Script then retry", "error");
+    alert("Could not push to the sheet: " + sheetSyncErrorHint(err.message));
   }
 }
 
@@ -1910,8 +1933,16 @@ el("test-connection-btn").addEventListener("click", async () => {
   setSyncStatus("Testing connection…");
   try {
     const products = await sheetGetAll();
-    setSyncStatus("Connected ✓");
-    alert(`Connected! Found ${products.length} product row(s).`);
+    const ver = num(state.settings.lastScriptVersion);
+    const verOk = ver >= REQUIRED_SCRIPT_VERSION;
+    setSyncStatus(verOk ? `Connected ✓ script v${ver}` : `Connected — old script v${ver || "?"}`);
+    alert(
+      verOk
+        ? `Connected! Apps Script v${ver}. Found ${products.length} product row(s).`
+        : `Connected, but Apps Script is OLD (v${ver || "unknown"}; need v${REQUIRED_SCRIPT_VERSION}+).\n\n` +
+            `Paste the latest google-apps-script.js, then Deploy → Manage deployments → Edit → New version → Deploy.\n\n` +
+            `Found ${products.length} product row(s).`
+    );
   } catch (err) {
     console.error(err);
     setSyncStatus("Connection failed ⚠️");
