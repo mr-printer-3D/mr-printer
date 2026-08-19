@@ -70,6 +70,10 @@ function loadState() {
         ...parsed.settings,
         filamentColors: (parsed.settings && parsed.settings.filamentColors) || DEFAULT_FILAMENT_COLORS,
       };
+      // Shared sheet URL must always be present for both partners
+      if (!String(state.settings.sheetUrl || "").trim()) {
+        state.settings.sheetUrl = DEFAULT_SETTINGS.sheetUrl;
+      }
       // Force new business defaults when migrating from v1 or settings revision bump
       const needsRefresh =
         fromLegacy || num(state.settings.settingsRevision) < SETTINGS_REVISION;
@@ -787,9 +791,11 @@ el("product-form").addEventListener("submit", (e) => {
   clearForm();
   renderCatalog();
   renderInventory();
-  syncUpsert(savedProduct);
   document.querySelector('.tab-btn[data-tab="catalog"]').click();
-  showToast("Product saved", "success");
+  showToast("Product saved locally…", "success");
+  void syncUpsert(savedProduct).then((ok) => {
+    if (ok) showToast("Product saved to shared sheet", "success");
+  });
 });
 
 el("clear-btn").addEventListener("click", clearForm);
@@ -1064,7 +1070,7 @@ el("inv-search").addEventListener("input", renderInventory);
 
 el("inv-pull-btn").addEventListener("click", () => {
   ensureSheetUrlSaved();
-  syncPullAll();
+  syncPullAll({ replace: true });
 });
 
 el("inv-push-btn").addEventListener("click", () => {
@@ -1418,7 +1424,11 @@ function round2(n) {
 }
 
 function getSheetUrl() {
-  return (state.settings.sheetUrl || "").trim();
+  const url = (state.settings.sheetUrl || DEFAULT_SETTINGS.sheetUrl || "").trim();
+  if (url && state.settings.sheetUrl !== url) {
+    state.settings.sheetUrl = url;
+  }
+  return url;
 }
 
 function isSheetConnected() {
@@ -1426,10 +1436,23 @@ function isSheetConnected() {
 }
 
 function ensureSheetUrlSaved() {
-  const url = el("s-sheeturl").value.trim();
+  const fromInput = el("s-sheeturl") ? el("s-sheeturl").value.trim() : "";
+  const url = fromInput || getSheetUrl() || DEFAULT_SETTINGS.sheetUrl;
   state.settings.sheetUrl = url;
+  if (el("s-sheeturl")) el("s-sheeturl").value = url;
   saveState();
   return url;
+}
+
+function setSharedSyncUi(message, kind) {
+  const bar = el("shared-sync-bar");
+  const msg = el("shared-sync-msg");
+  if (msg) msg.textContent = message;
+  if (bar) {
+    bar.classList.toggle("is-ok", kind === "ok");
+    bar.classList.toggle("is-error", kind === "error");
+  }
+  setSyncStatus(message);
 }
 
 async function sheetPost(payload) {
@@ -1452,7 +1475,7 @@ function apiUrl(base) {
 async function sheetGetAll() {
   const url = getSheetUrl();
   if (!url) throw new Error("No Google Sheet connected yet.");
-  const res = await fetch(apiUrl(url), { method: "GET" });
+  const res = await fetch(apiUrl(url), { method: "GET", cache: "no-store" });
   const data = await res.json();
   if (!data.ok) throw new Error(data.error || "Sheet sync failed.");
   return data.products || [];
@@ -1563,53 +1586,89 @@ function setSyncStatus(text) {
 }
 
 async function syncUpsert(p) {
-  if (!isSheetConnected()) return;
+  ensureSheetUrlSaved();
+  if (!isSheetConnected()) {
+    showToast("Add Google Sheet URL in Settings so partners can see this", "error");
+    setSharedSyncUi("Not connected to shared sheet", "error");
+    return false;
+  }
   try {
     await sheetPost({ action: "upsert", product: productForSync(p) });
-    showToast("Synced to Google Sheet", "success");
+    showToast("Saved to shared Google Sheet", "success");
+    setSharedSyncUi("Shared sheet updated · " + new Date().toLocaleTimeString(), "ok");
+    return true;
   } catch (err) {
     console.error(err);
-    showToast("Sheet sync failed — check Settings", "error");
+    showToast("Sheet sync failed — product is only on this device", "error");
+    setSharedSyncUi("Sync failed: " + (err.message || "check Apps Script"), "error");
+    return false;
   }
 }
 
 async function syncDelete(id) {
+  ensureSheetUrlSaved();
   if (!isSheetConnected()) return;
   try {
     await sheetPost({ action: "delete", id });
-    showToast("Removed from Google Sheet", "success");
+    showToast("Removed from shared Google Sheet", "success");
+    setSharedSyncUi("Shared sheet updated · " + new Date().toLocaleTimeString(), "ok");
   } catch (err) {
     console.error(err);
     showToast("Sheet sync failed — check Settings", "error");
+    setSharedSyncUi("Sync failed: " + (err.message || "check Apps Script"), "error");
   }
 }
 
 async function syncPushAll(silent) {
+  ensureSheetUrlSaved();
   if (!isSheetConnected()) {
     alert("Add your Google Sheet Web App URL in Settings first.");
     return;
   }
-  setSyncStatus("Pushing all products…");
+  setSharedSyncUi("Pushing all products to shared sheet…");
   try {
     await sheetPost({ action: "replaceAll", products: state.products.map(productForSync) });
-    setSyncStatus("Connected ✓");
-    if (!silent) alert(`Pushed ${state.products.length} product(s) to the sheet.`);
+    setSharedSyncUi("Shared catalog pushed · " + new Date().toLocaleTimeString(), "ok");
+    if (!silent) alert(`Pushed ${state.products.length} product(s) to the shared sheet.`);
     showToast("Pushed full catalog", "success");
   } catch (err) {
     console.error(err);
-    setSyncStatus("Sync failed ⚠️");
+    setSharedSyncUi("Sync failed ⚠️", "error");
     alert("Could not push to the sheet: " + err.message);
   }
 }
 
-async function syncPullAll() {
+/**
+ * Pull shared catalog. replace=true makes the Google Sheet the source of truth
+ * (both partners see the same products).
+ */
+async function syncPullAll(opts) {
+  const replace = !!(opts && opts.replace);
+  const silent = !!(opts && opts.silent);
+  ensureSheetUrlSaved();
   if (!isSheetConnected()) {
-    alert("Add your Google Sheet Web App URL in Settings first.");
-    return;
+    if (!silent) alert("Add your Google Sheet Web App URL in Settings first.");
+    setSharedSyncUi("Not connected — paste Apps Script URL in Settings", "error");
+    return false;
   }
-  setSyncStatus("Pulling from sheet…");
+  setSharedSyncUi(replace ? "Loading shared catalog…" : "Pulling from sheet…");
   try {
     const remote = await sheetGetAll();
+    if (replace) {
+      state.products = remote.map(remoteToProduct).filter((p) => p && p.id);
+      saveState();
+      renderCatalog();
+      renderInventory();
+      setSharedSyncUi(
+        `Shared catalog loaded · ${state.products.length} product(s) · ${new Date().toLocaleTimeString()}`,
+        "ok"
+      );
+      if (!silent) {
+        showToast(`Loaded ${state.products.length} shared product(s)`, "success");
+      }
+      return true;
+    }
+
     const byId = {};
     state.products.forEach((p) => (byId[p.id] = p));
     let added = 0,
@@ -1627,13 +1686,20 @@ async function syncPullAll() {
     saveState();
     renderCatalog();
     renderInventory();
-    setSyncStatus("Connected ✓");
-    alert(`Pulled from sheet: ${added} new, ${updated} updated.`);
+    setSharedSyncUi(`Pulled · ${added} new, ${updated} updated · ${new Date().toLocaleTimeString()}`, "ok");
+    if (!silent) alert(`Pulled from sheet: ${added} new, ${updated} updated.`);
+    return true;
   } catch (err) {
     console.error(err);
-    setSyncStatus("Sync failed ⚠️");
-    alert("Could not pull from the sheet: " + err.message);
+    setSharedSyncUi("Could not reach shared sheet — showing this device only", "error");
+    if (!silent) alert("Could not pull from the sheet: " + err.message);
+    return false;
   }
+}
+
+async function bootstrapSharedCatalog() {
+  ensureSheetUrlSaved();
+  await syncPullAll({ replace: true, silent: true });
 }
 
 el("test-connection-btn").addEventListener("click", async () => {
@@ -1656,13 +1722,20 @@ el("test-connection-btn").addEventListener("click", async () => {
 
 el("pull-sheet-btn").addEventListener("click", () => {
   ensureSheetUrlSaved();
-  syncPullAll();
+  syncPullAll({ replace: true });
 });
 
 el("push-sheet-btn").addEventListener("click", () => {
   ensureSheetUrlSaved();
   syncPushAll();
 });
+
+if (el("shared-sync-btn")) {
+  el("shared-sync-btn").addEventListener("click", () => {
+    ensureSheetUrlSaved();
+    syncPullAll({ replace: true });
+  });
+}
 
 /* ---------------------------- Theme ---------------------------- */
 
@@ -1693,6 +1766,15 @@ renderColorLibrary();
 clearForm();
 renderCatalog();
 renderInventory();
+ensureSheetUrlSaved();
+bootstrapSharedCatalog();
+
+// Re-sync when returning to the tab so partners see each other's saves
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") {
+    syncPullAll({ replace: true, silent: true });
+  }
+});
 
 // Expose for inline handlers
 window.startEdit = startEdit;
