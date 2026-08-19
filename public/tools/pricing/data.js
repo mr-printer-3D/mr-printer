@@ -80,7 +80,7 @@ const DEFAULT_FILAMENT_COLORS = [
 ];
 
 // Bump when shipping new default colors / rates so local saves refresh once.
-const SETTINGS_REVISION = 5;
+const SETTINGS_REVISION = 6;
 
 const DEFAULT_SETTINGS = {
   settingsRevision: SETTINGS_REVISION,

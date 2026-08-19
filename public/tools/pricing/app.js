@@ -85,7 +85,6 @@ function loadState() {
         state.settings.wastePct = DEFAULT_SETTINGS.wastePct;
         state.settings.watt = DEFAULT_SETTINGS.watt;
         state.settings.maintPct = DEFAULT_SETTINGS.maintPct;
-        state.settings.marginPct = DEFAULT_SETTINGS.marginPct;
         state.settings.filamentPrice = DEFAULT_SETTINGS.filamentPrice;
         state.settings.filamentColors = DEFAULT_FILAMENT_COLORS.map((c) => ({ ...c }));
         state.settings.sheetUrl = DEFAULT_SETTINGS.sheetUrl;
@@ -94,7 +93,6 @@ function loadState() {
       state.products = (parsed.products || []).map(migrateProduct);
       if (needsRefresh) {
         state.products.forEach((p) => {
-          p.marginPct = DEFAULT_SETTINGS.marginPct;
           p.packaging = state.settings.packaging;
         });
       }
@@ -151,7 +149,10 @@ function getProductRates(p) {
     labourRate: num(s.labourRate),
     designRate: p.designRate !== "" && p.designRate != null ? num(p.designRate) : num(s.designRate),
     packaging: p.packaging !== "" && p.packaging != null ? num(p.packaging) : num(s.packaging),
-    marginPct: num(DEFAULT_SETTINGS.marginPct), // fixed 50%
+    marginPct:
+      p.marginPct !== "" && p.marginPct != null
+        ? num(p.marginPct)
+        : num(s.marginPct),
   };
 }
 
@@ -484,7 +485,7 @@ function getFormProduct() {
     weight: el("f-weight").value,
     printHours: el("f-hours").value,
     postMin: el("f-postmin").value,
-    marginPct: DEFAULT_SETTINGS.marginPct,
+    marginPct: el("f-margin").value,
     includeDesign,
     designHours: el("f-designhours").value,
     designRate: el("f-designrate").value,
@@ -535,6 +536,7 @@ function setFormFromDefaults() {
   const s = state.settings;
   el("f-designrate").value = s.designRate;
   el("f-packaging").value = s.packaging;
+  el("f-margin").value = s.marginPct;
   el("f-shipping").value = s.shippingDefault;
   el("f-postmin").value = 15;
   updatePackLabels();
@@ -553,6 +555,8 @@ function setFormFromProduct(p) {
   el("f-designhours").value = p.designHours != null ? p.designHours : 0;
   el("f-designrate").value = p.designRate != null ? p.designRate : state.settings.designRate;
   el("f-packaging").value = p.packaging != null ? p.packaging : state.settings.packaging;
+  el("f-margin").value =
+    p.marginPct != null && p.marginPct !== "" ? p.marginPct : state.settings.marginPct;
   el("f-shipping").value = p.shipping != null ? p.shipping : 0;
   const ex = p.packagingExtras || {};
   el("f-pack-box").checked = !!ex.externalBox;
@@ -758,7 +762,7 @@ el("product-form").addEventListener("submit", (e) => {
     designRate: num(p.designRate),
     packaging: num(p.packaging),
     shipping: num(p.shipping),
-    marginPct: DEFAULT_SETTINGS.marginPct,
+    marginPct: num(p.marginPct),
     packagingCustom: p.packagingCustom || [],
     mrp: p.mrp === "" ? null : num(p.mrp),
     meesho: p.meesho === "" ? null : num(p.meesho),
@@ -1308,7 +1312,6 @@ function renderSettingsForm() {
   state.settings.labourRate = DEFAULT_SETTINGS.labourRate;
   state.settings.maintPct = DEFAULT_SETTINGS.maintPct;
   state.settings.failPct = DEFAULT_SETTINGS.failPct;
-  state.settings.marginPct = DEFAULT_SETTINGS.marginPct;
 
   for (const key in settingIds) {
     if (el(settingIds[key])) el(settingIds[key]).value = state.settings[key];
@@ -1394,7 +1397,6 @@ el("save-settings-btn").addEventListener("click", () => {
   state.settings.labourRate = DEFAULT_SETTINGS.labourRate;
   state.settings.maintPct = DEFAULT_SETTINGS.maintPct;
   state.settings.failPct = DEFAULT_SETTINGS.failPct;
-  state.settings.marginPct = DEFAULT_SETTINGS.marginPct;
   state.settings.sheetUrl = el("s-sheeturl").value.trim();
   state.settings.settingsRevision = SETTINGS_REVISION;
   saveState();
