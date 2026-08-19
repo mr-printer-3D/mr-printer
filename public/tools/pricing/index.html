@@ -137,9 +137,16 @@
                 <input type="number" step="any" id="f-packaging" />
               </label>
               <label class="field">
+                Profit margin %
+                <input type="number" step="any" min="0" id="f-margin" />
+              </label>
+            </div>
+            <div class="two-col">
+              <label class="field">
                 Shipping ₹
                 <input type="number" step="any" id="f-shipping" placeholder="0" />
               </label>
+              <span class="field-spacer" aria-hidden="true"></span>
             </div>
             <div class="pack-extras" id="pack-extras">
               <label class="pack-chip">
@@ -187,10 +194,9 @@
           </div>
 
           <details class="more-options">
-            <summary>Fixed rates — waste, machine, labour, margin…</summary>
+            <summary>Fixed rates — waste, machine, labour…</summary>
             <div class="more-inner">
               <div class="fixed-rates" id="fixed-rates">
-                <div class="fixed-rate"><span>Profit margin</span><strong>50%</strong></div>
                 <div class="fixed-rate"><span>Waste</span><strong id="fixed-waste">10%</strong></div>
                 <div class="fixed-rate"><span>Machine / hr</span><strong id="fixed-machine">₹30</strong></div>
                 <div class="fixed-rate"><span>Printer watt</span><strong id="fixed-watt">1300</strong></div>
@@ -381,13 +387,12 @@
         <div class="settings-row">
           <div class="card settings-card">
             <h2>Default rates</h2>
-            <p class="hint">Profit, packaging &amp; listing settings. Core print rates below are locked.</p>
+            <p class="hint">Set default profit margin, packaging &amp; listing. Core print rates below stay locked.</p>
 
             <details class="nested-options">
-              <summary>Fixed rates — waste, machine, labour, margin…</summary>
+              <summary>Fixed rates — waste, machine, labour…</summary>
               <div class="more-inner">
                 <div class="fixed-rates" id="settings-fixed-rates">
-                  <div class="fixed-rate"><span>Profit margin</span><strong>50%</strong></div>
                   <div class="fixed-rate"><span>Waste</span><strong id="s-fixed-waste">10%</strong></div>
                   <div class="fixed-rate"><span>Machine / hr</span><strong id="s-fixed-machine">₹30</strong></div>
                   <div class="fixed-rate"><span>Printer watt</span><strong id="s-fixed-watt">1300</strong></div>
@@ -407,15 +412,20 @@
             <input type="hidden" id="s-waste" />
             <input type="hidden" id="s-maint" />
             <input type="hidden" id="s-filament" />
-            <input type="hidden" id="s-margin" value="50" />
 
             <div class="two-col">
+              <label class="field">Default profit margin %
+                <input type="number" step="any" min="0" id="s-margin" />
+              </label>
               <label class="field">Base packaging ₹
                 <input type="number" step="any" id="s-packaging" />
               </label>
+            </div>
+            <div class="two-col">
               <label class="field">Design rate / hr ₹
                 <input type="number" step="any" id="s-designrate" />
               </label>
+              <span class="field-spacer" aria-hidden="true"></span>
             </div>
             <div class="two-col">
               <label class="field">Meesho commission %
