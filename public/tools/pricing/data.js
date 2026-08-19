@@ -61,8 +61,28 @@ const SEED_PRODUCTS = [
   inventory: { ritesh: 0, mayuri: 0 },
 }));
 
-/** Extra products restored from shared sheet (clean rows) */
+/** Extra products (clean rows with multi-color filament data) */
 const EXTRA_CATALOG_PRODUCTS = [
+  {
+    id: "p-1786129139357-187",
+    sku: "MRDSW",
+    name: "Dancing Skeleton White",
+    dims: "",
+    weight: 40,
+    colors: [],
+    printHours: 3,
+    postMin: 15,
+    designHours: 0,
+    designRate: 50,
+    packaging: 10,
+    shipping: 0,
+    packagingExtras: { externalBox: false, sticker: false, ribbon: false },
+    packagingCustom: [],
+    inventory: { ritesh: 0, mayuri: 0 },
+    marginPct: 50,
+    mrp: 399,
+    meesho: null,
+  },
   {
     id: "p-1786286330286-743",
     sku: "MRBSSB",
@@ -306,26 +326,6 @@ const EXTRA_CATALOG_PRODUCTS = [
     mrp: 1199,
     meesho: null,
   },
-  {
-    id: "p-1786129139357-187",
-    sku: "MRDSW",
-    name: "Dancing Skeleton White",
-    dims: "",
-    weight: 40,
-    colors: [],
-    printHours: 3,
-    postMin: 15,
-    designHours: 0,
-    designRate: 50,
-    packaging: 10,
-    shipping: 0,
-    packagingExtras: { externalBox: false, sticker: false, ribbon: false },
-    packagingCustom: [],
-    inventory: { ritesh: 0, mayuri: 0 },
-    marginPct: 50,
-    mrp: 399,
-    meesho: null,
-  },
 ];
 
 function getDefaultCatalogProducts() {
@@ -361,7 +361,7 @@ const DEFAULT_FILAMENT_COLORS = [
 // Bump when shipping new default colors / rates so local saves refresh once.
 const SETTINGS_REVISION = 6;
 // Bump to force-restore + push the shared product catalog once for all partners.
-const CATALOG_REVISION = 2;
+const CATALOG_REVISION = 3;
 
 const DEFAULT_SETTINGS = {
   settingsRevision: SETTINGS_REVISION,
