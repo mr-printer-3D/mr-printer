@@ -983,7 +983,6 @@ el("clear-all-btn").addEventListener("click", () => {
     syncOverwriteSheet(true);
   }
 });
-});
 
 /* ---------------------------- Catalog ---------------------------- */
 
