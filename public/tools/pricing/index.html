@@ -298,7 +298,8 @@
           </div>
           <div class="toolbar-actions">
             <button type="button" class="btn btn-ghost" id="restore-catalog-btn">Restore catalog</button>
-            <button class="btn btn-ghost" id="export-btn">Export</button>
+            <button class="btn btn-ghost" id="export-btn">Export pricing</button>
+            <button class="btn btn-ghost" id="export-shopify-btn">Export Shopify</button>
             <label class="btn btn-ghost file-btn">
               Import
               <input type="file" id="import-input" accept=".csv" hidden />
@@ -355,7 +356,7 @@
           </div>
           <div class="toolbar-actions">
             <button type="button" class="btn btn-ghost" id="inv-pull-btn">Pull from sheet</button>
-            <button type="button" class="btn btn-ghost" id="inv-push-btn">Push to sheet</button>
+            <button type="button" class="btn btn-ghost" id="inv-push-btn">Merge to sheet</button>
           </div>
         </div>
         <p class="section-hint inv-hint">Stock syncs to the same Google Sheet (Ritesh / Mayuri columns). Changes save locally and sync automatically.</p>
@@ -504,8 +505,8 @@
           <p class="hint">
             Connect your
             <a href="https://docs.google.com/spreadsheets/d/1HaJIjWntMd16vnSAFa9wASb_sWds2YwmrN4yGmGZ84M/edit" target="_blank" rel="noopener">Google Sheet</a>
-            via Apps Script. The sheet is the <strong>shared source of truth</strong> — both partners
-            see the same products. Catalog auto-syncs on open and when you save.
+            via Apps Script. Saves <strong>merge</strong> into the sheet (never wipe partners’ rows).
+            Both partners must use the <strong>same Web App URL</strong> and Apps Script <strong>v7+</strong>.
             Redeploy after updating <code>google-apps-script.js</code>. API uses <code>?api=1</code>.
           </p>
           <label class="field big">
@@ -515,7 +516,7 @@
           <div class="sync-actions">
             <button type="button" class="btn btn-ghost" id="test-connection-btn">Test connection</button>
             <button type="button" class="btn btn-ghost" id="pull-sheet-btn">Pull from sheet</button>
-            <button type="button" class="btn btn-ghost" id="push-sheet-btn">Push all to sheet</button>
+            <button type="button" class="btn btn-ghost" id="push-sheet-btn">Merge to sheet (safe)</button>
             <button type="button" class="btn btn-ghost" id="repair-sheet-btn">Repair sheet columns</button>
           </div>
           <span id="sync-status" class="sync-status"></span>
@@ -531,7 +532,7 @@
 
 <div id="toast" class="toast hidden"></div>
 
-<script src="/tools/pricing/data.js?v=6"></script>
-<script src="/tools/pricing/app.js?v=6"></script>
+<script src="/tools/pricing/data.js?v=8"></script>
+<script src="/tools/pricing/app.js?v=8"></script>
 </body>
 </html>

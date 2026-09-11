@@ -387,5 +387,5 @@ const DEFAULT_SETTINGS = {
   mrpOffset: 1,
   meeshoCommissionPct: 20,
   filamentColors: DEFAULT_FILAMENT_COLORS,
-  sheetUrl: "https://script.google.com/macros/s/AKfycbyLTP_kvXmMIjMSUAANDrCz1x6vtEnoplpUe_A-_VloC-wkitY53UoENctiHFbFhh6oRA/exec",
+  sheetUrl: "https://script.google.com/macros/s/AKfycbyXDWFwa_m9LpCafNlMGptzHxpSY7JSQmnlK9D7cmPgyEVb5e2QtzMDQFh5jnZ7X6qHJA/exec",
 };

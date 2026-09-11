@@ -12,13 +12,13 @@
 
   API:
     GET  ?api=1
-    POST text/plain JSON → upsert | delete | replaceAll | repairHeaders
+    POST text/plain JSON → upsert | upsertMany | delete | replaceAll | repairHeaders
   ============================================================================
 */
 
 var SHEET_NAME = "Pricing";
 /** Bump when fixing sync bugs — Test Connection shows this so you know the Web App is updated */
-var SCRIPT_VERSION = 5;
+var SCRIPT_VERSION = 7;
 
 /** Official columns only — do not add extra headers in the sheet */
 var HEADERS = [
@@ -310,6 +310,47 @@ function doPost(e) {
       return jsonOut_({ ok: true, action: "upsert", id: p.id, scriptVersion: SCRIPT_VERSION });
     }
 
+    /**
+     * Safe multi-user write: add/update rows by id.
+     * Never deletes partners' products that are not in this payload.
+     */
+    if (action === "upsertMany") {
+      var list = data.products || [];
+      var added = 0;
+      var updated = 0;
+      var lastRow = sheet.getLastRow();
+      var idToRow = {};
+      if (lastRow >= 2) {
+        var idCol = sheet.getRange(2, 1, lastRow, 1).getValues();
+        for (var i = 0; i < idCol.length; i++) {
+          var rid = String(idCol[i][0] || "").trim();
+          if (rid) idToRow[rid] = i + 2;
+        }
+      }
+      for (var j = 0; j < list.length; j++) {
+        var prod = list[j] || {};
+        if (!prod.id) continue;
+        var prow = productToRow_(prod);
+        var pid = String(prod.id).trim();
+        if (idToRow[pid]) {
+          sheet.getRange(idToRow[pid], 1).offset(0, 0, 1, HEADERS.length).setValues([prow]);
+          updated++;
+        } else {
+          sheet.appendRow(prow);
+          idToRow[pid] = sheet.getLastRow();
+          added++;
+        }
+      }
+      return jsonOut_({
+        ok: true,
+        action: "upsertMany",
+        added: added,
+        updated: updated,
+        count: added + updated,
+        scriptVersion: SCRIPT_VERSION,
+      });
+    }
+
     if (action === "delete") {
       var delId = data.id;
       var delRow = findRowById_(sheet, delId);
@@ -337,6 +378,75 @@ function doPost(e) {
         ok: true,
         action: "replaceAll",
         count: products.length,
+        scriptVersion: SCRIPT_VERSION,
+      });
+    }
+
+    /**
+     * Upload listing images into Drive:
+     * parentFolder / {SKU} / shot-1.jpg …
+     * Requires Web App deploy as "Me" with Drive access (default).
+     */
+    if (action === "uploadProductImages") {
+      var parentFolderId = String(data.parentFolderId || "").trim();
+      var sku = String(data.sku || "")
+        .trim()
+        .replace(/[\\/:*?"<>|]/g, "-");
+      var files = data.files || [];
+      if (!parentFolderId) throw new Error("parentFolderId is required.");
+      if (!sku) throw new Error("sku is required (folder name).");
+      if (!files.length) throw new Error("No image files to upload.");
+
+      var parent = DriveApp.getFolderById(parentFolderId);
+      var existing = parent.getFoldersByName(sku);
+      var folder = existing.hasNext() ? existing.next() : parent.createFolder(sku);
+
+      // Optional: clear previous listing jpgs with same names
+      var uploaded = [];
+      for (var fi = 0; fi < files.length; fi++) {
+        var f = files[fi];
+        var fname = String(f.name || "image-" + (fi + 1) + ".jpg").replace(
+          /[\\/:*?"<>|]/g,
+          "-"
+        );
+        var mime = f.mimeType || "image/jpeg";
+        var b64 = String(f.base64 || "").replace(/^data:[^;]+;base64,/, "");
+        if (!b64) continue;
+
+        // Remove older file with same name in this SKU folder
+        var olds = folder.getFilesByName(fname);
+        while (olds.hasNext()) olds.next().setTrashed(true);
+
+        var blob = Utilities.newBlob(
+          Utilities.base64Decode(b64),
+          mime,
+          fname
+        );
+        var created = folder.createFile(blob);
+        // Anyone-with-link viewer so Meesho image proxy / sync can read
+        try {
+          created.setSharing(
+            DriveApp.Access.ANYONE_WITH_LINK,
+            DriveApp.Permission.VIEW
+          );
+        } catch (shareErr) {
+          // ignore if domain policy blocks
+        }
+        uploaded.push({
+          id: created.getId(),
+          name: created.getName(),
+          url: "https://drive.google.com/uc?export=view&id=" + created.getId(),
+        });
+      }
+
+      return jsonOut_({
+        ok: true,
+        action: "uploadProductImages",
+        sku: sku,
+        folderId: folder.getId(),
+        folderName: sku,
+        count: uploaded.length,
+        files: uploaded,
         scriptVersion: SCRIPT_VERSION,
       });
     }

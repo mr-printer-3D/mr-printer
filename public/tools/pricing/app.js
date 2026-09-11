@@ -126,11 +126,12 @@ function applyCatalogDefaults(products) {
   });
 }
 
-/** Restore built-in catalog (seed + extras) and optionally push to shared sheet. */
+/** Restore built-in catalog into LOCAL list (merge) and safely upsert to sheet — never wipe partners. */
 async function restoreDefaultCatalog(opts) {
   const silent = !!(opts && opts.silent);
   const push = opts && opts.push !== false;
-  state.products = applyCatalogDefaults(getDefaultCatalogProducts());
+  // Merge defaults — do NOT wipe custom / partner products already on this device
+  const { added, updated } = upsertProductsById(getDefaultCatalogProducts());
   state.settings.catalogRevision = CATALOG_REVISION;
   catalogPage = 1;
   inventoryPage = 1;
@@ -138,16 +139,19 @@ async function restoreDefaultCatalog(opts) {
   renderCatalog();
   renderInventory();
   if (push && isSheetConnected()) {
-    await syncPushAll(true);
+    await syncMergePush(true);
     setSharedSyncUi(
-      `Restored ${state.products.length} products to shared sheet · ${new Date().toLocaleTimeString()}`,
+      `Restored defaults (merged) · ${added} added, ${updated} updated · sheet safe-merge · ${state.products.length} local`,
       "ok"
     );
   } else {
-    setSharedSyncUi(`Restored ${state.products.length} products on this device`, "ok");
+    setSharedSyncUi(
+      `Restored defaults on this device · ${added} added, ${updated} updated · ${state.products.length} total`,
+      "ok"
+    );
   }
   if (!silent) {
-    showToast(`Restored ${state.products.length} products`, "success");
+    showToast(`Catalog restored (merged) · ${state.products.length} products`, "success");
   }
 }
 
@@ -184,7 +188,7 @@ async function ensureDefaultProductsMerged(opts) {
   renderCatalog();
   renderInventory();
   if (push && isSheetConnected()) {
-    await syncPushAll(true);
+    await syncMergePush(true);
   }
   const msg = `Catalog synced · ${added} added, ${updated} updated · ${state.products.length} total`;
   setSharedSyncUi(msg + " · " + new Date().toLocaleTimeString(), "ok");
@@ -919,14 +923,20 @@ function deleteProduct(id) {
 }
 
 el("clear-all-btn").addEventListener("click", () => {
-  if (!confirm("This will remove ALL products from the catalog. Continue?")) return;
+  if (!confirm("This will remove ALL products from the catalog on THIS device. Continue?")) return;
   state.products = [];
   saveState();
   renderCatalog();
   renderInventory();
-  if (isSheetConnected() && confirm("Also clear all rows in the connected Google Sheet?")) {
-    syncPushAll(true);
+  if (
+    isSheetConnected() &&
+    confirm(
+      "ALSO wipe the SHARED Google Sheet for everyone (Ritesh/you)?\n\nOnly say OK if you really mean to delete the shared catalog."
+    )
+  ) {
+    syncOverwriteSheet(true);
   }
+});
 });
 
 /* ---------------------------- Catalog ---------------------------- */
@@ -1094,7 +1104,8 @@ if (el("restore-catalog-btn")) {
   el("restore-catalog-btn").addEventListener("click", async () => {
     if (
       !confirm(
-        "Restore the built-in product catalog (seed + extras) and push it to the shared Google Sheet? This replaces the current catalog."
+        "Add missing built-in products and refresh known seed rows?\n\n" +
+          "Safe for partners: does NOT delete custom products you or Ritesh added."
       )
     ) {
       return;
@@ -1214,7 +1225,7 @@ el("inv-pull-btn").addEventListener("click", () => {
 
 el("inv-push-btn").addEventListener("click", () => {
   ensureSheetUrlSaved();
-  syncPushAll();
+  syncMergePush();
 });
 
 /* ---------------------------- CSV ---------------------------- */
@@ -1285,6 +1296,152 @@ el("export-btn").addEventListener("click", () => {
   });
   downloadFile("mr-printer-pricing.csv", lines.join("\n"));
 });
+
+const SHOPIFY_CSV_HEADERS = [
+  "Title",
+  "URL handle",
+  "Description",
+  "Vendor",
+  "Product category",
+  "Type",
+  "Tags",
+  "Published on online store",
+  "Status",
+  "SKU",
+  "Barcode",
+  "Option1 name",
+  "Option1 value",
+  "Option1 Linked To",
+  "Option2 name",
+  "Option2 value",
+  "Option2 Linked To",
+  "Option3 name",
+  "Option3 value",
+  "Option3 Linked To",
+  "Price",
+  "Compare-at price",
+  "Cost per item",
+  "Charge tax",
+  "Tax code",
+  "Unit price total measure",
+  "Unit price total measure unit",
+  "Unit price base measure",
+  "Unit price base measure unit",
+  "Inventory tracker",
+  "Inventory quantity",
+  "Continue selling when out of stock",
+  "Weight value (grams)",
+  "Weight unit for display",
+  "Requires shipping",
+  "Fulfillment service",
+  "Product image URL",
+  "Image position",
+  "Image alt text",
+  "Variant image URL",
+  "Gift card",
+  "SEO title",
+  "SEO description",
+  "Color (product.metafields.shopify.color-pattern)",
+  "Google Shopping / Google product category",
+  "Google Shopping / Gender",
+  "Google Shopping / Age group",
+  "Google Shopping / Manufacturer part number (MPN)",
+  "Google Shopping / Ad group name",
+  "Google Shopping / Ads labels",
+  "Google Shopping / Condition",
+  "Google Shopping / Custom product",
+  "Google Shopping / Custom label 0",
+  "Google Shopping / Custom label 1",
+  "Google Shopping / Custom label 2",
+  "Google Shopping / Custom label 3",
+  "Google Shopping / Custom label 4",
+];
+
+function shopifySlug(input) {
+  return String(input || "product")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80) || "product";
+}
+
+if (el("export-shopify-btn")) {
+  el("export-shopify-btn").addEventListener("click", () => {
+    if (!state.products.length) {
+      alert("No products to export.");
+      return;
+    }
+    const lines = [SHOPIFY_CSV_HEADERS.join(",")];
+    state.products.forEach((p) => {
+      const c = calculate(p);
+      const handle = shopifySlug(p.sku || p.name);
+      const colors = (p.colors || []).map((x) => x.name).filter(Boolean);
+      const optionColors = colors.length ? colors : ["Default Title"];
+      const useColor = !(optionColors.length === 1 && optionColors[0] === "Default Title");
+      const price = c.sellingPrice.toFixed(2);
+      const compare = c.mrp > c.sellingPrice ? c.mrp.toFixed(2) : "";
+      const stock = (c.inventory.ritesh || 0) + (c.inventory.mayuri || 0);
+      const weight = Math.max(1, Math.round(c.totalWeight || 50));
+      const desc = p.dims
+        ? `3D printed product · ${p.dims}`
+        : "3D printed product from Mr. Printer Studio";
+
+      optionColors.forEach((color, vi) => {
+        const row = SHOPIFY_CSV_HEADERS.map(() => "");
+        const set = (key, val) => {
+          const i = SHOPIFY_CSV_HEADERS.indexOf(key);
+          if (i >= 0) row[i] = val == null ? "" : String(val);
+        };
+        if (vi === 0) {
+          set("Title", p.name);
+          set("Description", desc);
+          set("Vendor", "Mr. Printer Studio");
+          set("Product category", "Home & Garden > Decor");
+          set("Type", "3D Printed");
+          set("Tags", "3D Print, Mr Printer");
+          set("Published on online store", "TRUE");
+          set("Status", "Active");
+          set("SEO title", String(p.name || "").slice(0, 70));
+          set("SEO description", desc.slice(0, 320));
+          set(
+            "Color (product.metafields.shopify.color-pattern)",
+            useColor ? optionColors.join("; ") : ""
+          );
+          set("Google Shopping / Condition", "New");
+          set("Google Shopping / Custom product", "FALSE");
+        }
+        set("URL handle", handle);
+        set(
+          "SKU",
+          optionColors.length > 1 ? `${p.sku}-${shopifySlug(color).slice(0, 12)}` : p.sku
+        );
+        if (useColor) {
+          set("Option1 name", "Color");
+          set("Option1 value", color);
+          set("Option1 Linked To", "product.metafields.shopify.color-pattern");
+        } else {
+          set("Option1 name", "Title");
+          set("Option1 value", "Default Title");
+        }
+        set("Price", price);
+        set("Compare-at price", compare);
+        set("Cost per item", c.finalTotalCost.toFixed(2));
+        set("Charge tax", "TRUE");
+        set("Inventory tracker", "shopify");
+        set("Inventory quantity", stock);
+        set("Continue selling when out of stock", "DENY");
+        set("Weight value (grams)", weight);
+        set("Weight unit for display", "g");
+        set("Requires shipping", "TRUE");
+        set("Fulfillment service", "manual");
+        set("Gift card", "FALSE");
+        lines.push(row.map(csvEscape).join(","));
+      });
+    });
+    downloadFile("shopify-products.csv", lines.join("\n"));
+    showToast("Shopify product CSV downloaded", "success");
+  });
+}
 
 function csvEscape(v) {
   const s = v === null || v === undefined ? "" : String(v);
@@ -1604,7 +1761,7 @@ function setSharedSyncUi(message, kind) {
   setSyncStatus(message);
 }
 
-const REQUIRED_SCRIPT_VERSION = 5;
+const REQUIRED_SCRIPT_VERSION = 7;
 let syncInFlight = null;
 let bootstrapDone = false;
 
@@ -1846,31 +2003,87 @@ async function syncDelete(id) {
   }
 }
 
-async function syncPushAll(silent) {
+/**
+ * Safe multi-user push: upsert every local product.
+ * Never deletes partners' rows that are only on the sheet.
+ */
+async function syncMergePush(silent) {
   ensureSheetUrlSaved();
   if (!isSheetConnected()) {
-    alert("Add your Google Sheet Web App URL in Settings first.");
-    return;
+    if (!silent) alert("Add your Google Sheet Web App URL in Settings first.");
+    return false;
   }
-  setSharedSyncUi("Pushing all products to shared sheet…");
+  setSharedSyncUi("Merging products to shared sheet (safe)…");
   try {
-    await sheetPost({ action: "replaceAll", products: state.products.map(productForSync) });
-    setSharedSyncUi("Shared catalog pushed · " + new Date().toLocaleTimeString(), "ok");
-    if (!silent) alert(`Pushed ${state.products.length} product(s) to the shared sheet.`);
-    showToast("Pushed full catalog", "success");
+    const products = state.products.map(productForSync);
+    try {
+      await sheetPost({ action: "upsertMany", products });
+    } catch (err) {
+      // Old Apps Script without upsertMany — fall back to one-by-one upsert (still no wipe)
+      const msg = String(err && err.message ? err.message : err);
+      if (!/unknown action|upsertMany/i.test(msg)) throw err;
+      for (let i = 0; i < products.length; i++) {
+        await sheetPost({ action: "upsert", product: products[i] });
+      }
+    }
+    setSharedSyncUi(
+      `Merged ${state.products.length} product(s) · partners’ other rows kept · ${new Date().toLocaleTimeString()}`,
+      "ok"
+    );
+    if (!silent) {
+      alert(
+        `Merged ${state.products.length} product(s) into the shared sheet.\n\n` +
+          "Partners’ products that exist only on the sheet were NOT deleted."
+      );
+    }
+    showToast("Merged to shared sheet", "success");
+    return true;
   } catch (err) {
     console.error(err);
     setSharedSyncUi("Sync failed ⚠️ — update Apps Script then retry", "error");
-    alert("Could not push to the sheet: " + sheetSyncErrorHint(err.message));
+    if (!silent) alert("Could not merge to the sheet: " + sheetSyncErrorHint(err.message));
+    return false;
   }
 }
 
 /**
- * Pull shared catalog. replace=true makes the Google Sheet the source of truth
- * (both partners see the same products).
+ * DANGEROUS: wipe sheet and write only this device's catalog.
+ * Only for Clear-all / explicit overwrite — never auto-run.
+ */
+async function syncOverwriteSheet(silent) {
+  ensureSheetUrlSaved();
+  if (!isSheetConnected()) {
+    if (!silent) alert("Add your Google Sheet Web App URL in Settings first.");
+    return false;
+  }
+  setSharedSyncUi("Overwriting shared sheet…");
+  try {
+    await sheetPost({ action: "replaceAll", products: state.products.map(productForSync) });
+    setSharedSyncUi("Shared sheet overwritten · " + new Date().toLocaleTimeString(), "warn");
+    if (!silent) alert(`Overwrote shared sheet with ${state.products.length} product(s) from this device.`);
+    showToast("Sheet overwritten", "success");
+    return true;
+  } catch (err) {
+    console.error(err);
+    setSharedSyncUi("Overwrite failed ⚠️", "error");
+    if (!silent) alert("Could not overwrite sheet: " + sheetSyncErrorHint(err.message));
+    return false;
+  }
+}
+
+/** @deprecated name kept — now safe merge */
+async function syncPushAll(silent) {
+  return syncMergePush(silent);
+}
+
+/**
+ * Pull shared catalog.
+ * replace=true → sheet is source of truth (manual Pull / Sync).
+ * merge=true → remote updates known ids; keeps local-only products (auto tab refresh).
  */
 async function syncPullAll(opts) {
   const replace = !!(opts && opts.replace);
+  const merge = !!(opts && opts.merge) || !replace;
   const silent = !!(opts && opts.silent);
   const force = !!(opts && opts.force);
 
@@ -1888,79 +2101,79 @@ async function syncPullAll(opts) {
       setSharedSyncUi("Not connected — paste Apps Script URL in Settings", "error");
       return false;
     }
-    setSharedSyncUi(replace ? "Loading shared catalog…" : "Pulling from sheet…");
+    setSharedSyncUi(replace ? "Loading shared catalog…" : "Merging from sheet…");
     try {
       const remoteResult = await sheetGetAll();
       const remote = remoteResult.products || [];
       const prevCount = state.products.length;
+      const prevById = {};
+      state.products.forEach((p) => {
+        if (p && p.id) prevById[p.id] = p;
+      });
 
-      if (replace) {
-        const next = remote
-          .map(remoteToProduct)
-          .filter((p) => p && p.id)
-          .map((p) => {
-            if (!p.id) p.id = "sheet-" + Math.random().toString(36).slice(2, 9);
-            return p;
-          });
+      const nextFromRemote = remote
+        .map(remoteToProduct)
+        .filter((p) => p && p.id)
+        .map((p) => {
+          if (!p.id) p.id = "sheet-" + Math.random().toString(36).slice(2, 9);
+          return p;
+        });
 
-        // Never wipe a good local catalog with empty / broken remote data
-        if (!next.length) {
-          if (prevCount > 0) {
-            setSharedSyncUi(
-              `Sheet returned 0 usable products — kept ${prevCount} local · ${new Date().toLocaleTimeString()}`,
-              "warn"
-            );
-            return true;
-          }
-          setSharedSyncUi("Shared sheet is empty", "warn");
-          return true;
-        }
-
-        // Guard against partial/corrupt pulls wiping most of the catalog on refresh
-        if (!force && prevCount >= 10 && next.length < Math.max(5, Math.floor(prevCount * 0.5))) {
+      // Never wipe a good local catalog with empty / broken remote data
+      if (!nextFromRemote.length) {
+        if (prevCount > 0) {
           setSharedSyncUi(
-            `Ignored suspicious pull (${next.length} vs local ${prevCount}) — kept local catalog`,
+            `Sheet returned 0 usable products — kept ${prevCount} local · ${new Date().toLocaleTimeString()}`,
             "warn"
           );
           return true;
         }
-
-        state.products = next;
-        catalogPage = 1;
-        inventoryPage = 1;
-        saveState();
-        renderCatalog();
-        renderInventory();
-        setSharedSyncUi(
-          `Shared catalog loaded · ${state.products.length} product(s) · ${new Date().toLocaleTimeString()}`,
-          "ok"
-        );
-        if (!silent) {
-          showToast(`Loaded ${state.products.length} shared product(s)`, "success");
-        }
+        setSharedSyncUi("Shared sheet is empty", "warn");
         return true;
       }
 
-      const byId = {};
-      state.products.forEach((p) => (byId[p.id] = p));
-      let added = 0,
-        updated = 0;
-      remote.forEach((r) => {
-        const product = remoteToProduct(r);
-        if (!product.id) return;
-        if (byId[product.id]) {
-          Object.assign(byId[product.id], product);
-          updated++;
-        } else {
-          state.products.push(product);
-          added++;
-        }
-      });
+      // Guard against partial/corrupt pulls wiping most of the catalog on refresh
+      if (
+        replace &&
+        !force &&
+        prevCount >= 10 &&
+        nextFromRemote.length < Math.max(5, Math.floor(prevCount * 0.5))
+      ) {
+        setSharedSyncUi(
+          `Ignored suspicious pull (${nextFromRemote.length} vs local ${prevCount}) — kept local catalog`,
+          "warn"
+        );
+        return true;
+      }
+
+      if (replace && !merge) {
+        state.products = nextFromRemote;
+      } else {
+        // Merge: sheet wins for shared ids; keep local-only rows on this device
+        // (do NOT auto-upload them — that would revive products a partner deleted)
+        const remoteIds = {};
+        const merged = nextFromRemote.map((p) => {
+          remoteIds[p.id] = true;
+          return p;
+        });
+        Object.keys(prevById).forEach((id) => {
+          if (!remoteIds[id]) merged.push(prevById[id]);
+        });
+        state.products = merged;
+      }
+
+      catalogPage = 1;
+      inventoryPage = 1;
       saveState();
       renderCatalog();
       renderInventory();
-      setSharedSyncUi(`Pulled · ${added} new, ${updated} updated · ${new Date().toLocaleTimeString()}`, "ok");
-      if (!silent) alert(`Pulled from sheet: ${added} new, ${updated} updated.`);
+      setSharedSyncUi(
+        `Shared catalog loaded · ${state.products.length} product(s) · ${new Date().toLocaleTimeString()}`,
+        "ok"
+      );
+      if (!silent) {
+        showToast(`Loaded ${state.products.length} shared product(s)`, "success");
+      }
       return true;
     } catch (err) {
       console.error(err);
@@ -1981,11 +2194,12 @@ async function syncPullAll(opts) {
 async function bootstrapSharedCatalog() {
   ensureSheetUrlSaved();
   try {
-    let result = await syncPullAll({ replace: true, silent: true });
+    // Merge pull — never wipe local-only rows; upload them to sheet instead
+    let result = await syncPullAll({ merge: true, silent: true });
     // If this device still talks to an old Web App, snap to canonical URL and retry
     if (num(state.settings.lastScriptVersion) < REQUIRED_SCRIPT_VERSION) {
       resetToCanonicalSheetUrl();
-      result = await syncPullAll({ replace: true, silent: true, force: true });
+      result = await syncPullAll({ merge: true, silent: true, force: true });
     }
     if (!state.products.length) {
       await restoreDefaultCatalog({ silent: true, push: true });
@@ -2028,7 +2242,7 @@ el("test-connection-btn").addEventListener("click", async () => {
             `Fix for Ritesh:\n` +
             `1. Hard-refresh (Ctrl+Shift+R)\n` +
             `2. Open the sheet → Apps Script → Deploy → Manage deployments\n` +
-            `3. Copy the Web App URL from the deployment that is Version 5\n` +
+            `3. Copy the Web App URL from the latest deployment (v7+)\n` +
             `4. Paste it into Pricing → Settings → Apps Script Web App URL → Save\n` +
             `5. Test connection again\n\n` +
             `URL currently used:\n${url}\n\n` +
@@ -2048,7 +2262,15 @@ el("pull-sheet-btn").addEventListener("click", () => {
 
 el("push-sheet-btn").addEventListener("click", () => {
   ensureSheetUrlSaved();
-  syncPushAll();
+  if (
+    !confirm(
+      "Merge this device’s products into the shared sheet?\n\n" +
+        "Safe: adds/updates only — does NOT delete products Ritesh (or you) added on another device."
+    )
+  ) {
+    return;
+  }
+  syncMergePush();
 });
 
 if (el("repair-sheet-btn")) {
@@ -2056,18 +2278,18 @@ if (el("repair-sheet-btn")) {
     ensureSheetUrlSaved();
     if (
       !confirm(
-        "This will reset sheet headers to the official columns, clear extra columns, then rewrite all products cleanly. Continue?"
+        "This will reset sheet headers to the official columns, clear extra columns, then merge all products from this device (no wipe). Continue?"
       )
     )
       return;
     setSharedSyncUi("Repairing sheet columns…");
     try {
       await sheetPost({ action: "repairHeaders" });
-      await syncPushAll(true);
-      await syncPullAll({ replace: true, silent: true });
-      setSharedSyncUi("Sheet columns repaired · catalog rewritten", "ok");
+      await syncMergePush(true);
+      await syncPullAll({ merge: true, silent: true });
+      setSharedSyncUi("Sheet columns repaired · catalog merged", "ok");
       alert(
-        "Sheet repaired.\n\nAlso paste the latest google-apps-script.js into Apps Script and deploy a new version if you have not yet."
+        "Sheet repaired.\n\nAlso paste the latest google-apps-script.js into Apps Script and deploy a new version if you have not yet (need v7+)."
       );
     } catch (err) {
       console.error(err);
@@ -2120,10 +2342,10 @@ renderInventory();
 ensureSheetUrlSaved();
 bootstrapSharedCatalog();
 
-// Re-sync when returning to the tab so partners see each other's saves
+// Re-sync when returning to the tab — merge so neither partner loses local-only rows
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible" && bootstrapDone) {
-    syncPullAll({ replace: true, silent: true });
+    syncPullAll({ merge: true, silent: true });
   }
 });
 

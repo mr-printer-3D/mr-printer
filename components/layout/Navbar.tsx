@@ -25,6 +25,12 @@ export function Navbar() {
     setMobileOpen(false);
   }, [pathname]);
 
+  if (
+    pathname?.startsWith("/listing-images") ||
+    pathname?.startsWith("/meesho")
+  )
+    return null;
+
   return (
     <>
       <motion.header

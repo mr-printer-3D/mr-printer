@@ -1,9 +1,19 @@
+"use client";
+
 import Link from "next/link";
 import Image from "next/image";
+import { usePathname } from "next/navigation";
 import { Mail, Phone, MapPin, MessageCircle, Share2, Code2 } from "lucide-react";
 import { BRAND, NAV_LINKS, SERVICES } from "@/lib/constants";
 
 export function Footer() {
+  const pathname = usePathname();
+  if (
+    pathname?.startsWith("/listing-images") ||
+    pathname?.startsWith("/meesho")
+  )
+    return null;
+
   return (
     <footer className="bg-brand-black text-white">
       <div className="mx-auto max-w-7xl px-6 py-20 md:px-12 lg:px-20">

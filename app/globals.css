@@ -38,6 +38,20 @@ body {
   overflow-x: hidden;
 }
 
+/* Tool pages: Lenis off — use normal document scroll (do NOT lock overflow) */
+html.native-scroll {
+  height: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+html.native-scroll body {
+  height: auto;
+  min-height: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
 ::selection {
   background: var(--brand-gold);
   color: var(--brand-black);

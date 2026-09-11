@@ -1,11 +1,17 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  transpilePackages: ["three"],
+  transpilePackages: ["three", "@imgly/background-removal"],
   trailingSlash: false,
+  serverExternalPackages: ["onnxruntime-web"],
+  images: {
+    remotePatterns: [
+      { protocol: "https", hostname: "replicate.delivery" },
+      { protocol: "https", hostname: "**.replicate.delivery" },
+    ],
+  },
   async redirects() {
     return [
-      // Old studio paths → new root tool paths
       { source: "/studio", destination: "/", permanent: false },
       { source: "/studio/", destination: "/", permanent: false },
       { source: "/studio/index.html", destination: "/", permanent: false },
@@ -24,12 +30,23 @@ const nextConfig: NextConfig = {
         destination: "/tools/pricing",
         permanent: false,
       },
-      // Avoid Next trailing-slash bounce fighting our rewrite
       {
         source: "/tools/pricing/",
         destination: "/tools/pricing",
         permanent: false,
       },
+      {
+        source: "/tools/listing-images",
+        destination: "/listing-images",
+        permanent: false,
+      },
+      {
+        source: "/tools/listing-images/:path*",
+        destination: "/listing-images",
+        permanent: false,
+      },
+      { source: "/product-studio", destination: "/listing-images", permanent: false },
+      { source: "/video-flow", destination: "/", permanent: false },
     ];
   },
   async rewrites() {
