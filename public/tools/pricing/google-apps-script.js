@@ -11,7 +11,7 @@
     Who has access: Anyone
 
   DRIVE PERMISSION (required for image upload):
-  1. In Apps Script, select function authorizeDrive_ → Run
+  1. In Apps Script, select function authorizeDrive → Run
   2. Review permissions → Allow (Google Drive)
   3. Deploy → Manage deployments → Edit → New version → Deploy
 
@@ -30,10 +30,10 @@ var SHEET_NAME = "Pricing";
 var SCRIPT_VERSION = 9;
 
 /**
- * Run this ONCE from the Apps Script editor (Run ▶) to grant Drive access.
- * Without this, uploadProductImages fails with DriveApp.getFolderById permission error.
+ * Run this ONCE from the Apps Script editor (select authorizeDrive → Run ▶)
+ * to grant Drive access. Without this, image upload fails with DriveApp permission error.
  */
-function authorizeDrive_() {
+function authorizeDrive() {
   // Touch Drive so Google shows the consent screen for drive scope
   var folders = DriveApp.getRootFolder().getName();
   var sheet = SpreadsheetApp.getActiveSpreadsheet().getName();

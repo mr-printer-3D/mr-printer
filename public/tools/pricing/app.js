@@ -731,7 +731,7 @@ async function uploadPendingImages(sku, list) {
         "Apps Script needs Google Drive permission.\n\n" +
           "1. Sheet → Extensions → Apps Script\n" +
           "2. Paste latest google-apps-script.js\n" +
-          "3. Select authorizeDrive_ → Run → Allow Drive access\n" +
+          "3. Select authorizeDrive → Run → Allow Drive access\n" +
           "4. Deploy → Manage deployments → Edit → New version\n" +
           "5. Test connection (should show v9+)\n\n" +
           err
