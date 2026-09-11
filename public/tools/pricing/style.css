@@ -268,8 +268,14 @@ a.tab-btn.studio-link:hover { color: var(--text); background: var(--primary-soft
   margin: 0 auto;
   width: 100%;
 }
-.tab-panel { display: none; }
-.tab-panel.active { display: block; animation: fadeIn .22s ease; }
+.quick-nav-note {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.tab-panel { display: none !important; }
+.tab-panel.active { display: block !important; animation: fadeIn .22s ease; }
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(6px); }
   to { opacity: 1; transform: none; }

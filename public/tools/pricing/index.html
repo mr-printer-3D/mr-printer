@@ -18,7 +18,28 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;0,9..40,800;1,9..40,400&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap" rel="stylesheet" />
 <link rel="icon" type="image/png" href="/assets/logo.png" />
-<link rel="stylesheet" href="/tools/pricing/style.css?v=10" />
+<link rel="stylesheet" href="/tools/pricing/style.css?v=11" />
+<script>
+  // Runs before app.js — Catalog/Inventory/Settings must always switch panels
+  window.__showTab = function (name) {
+    var allowed = { calculator: 1, catalog: 1, inventory: 1, settings: 1 };
+    if (!allowed[name]) name = "calculator";
+    document.querySelectorAll(".tab-panel").forEach(function (p) {
+      p.classList.toggle("active", p.id === "tab-" + name);
+    });
+    document.querySelectorAll(".tab-btn[data-tab]").forEach(function (b) {
+      b.classList.toggle("active", b.getAttribute("data-tab") === name);
+    });
+    try {
+      if (location.hash !== "#" + name) history.replaceState(null, "", "#" + name);
+    } catch (e) {}
+    return false;
+  };
+  window.addEventListener("hashchange", function () {
+    var h = String(location.hash || "").replace(/^#/, "") || "calculator";
+    window.__showTab(h);
+  });
+</script>
 </head>
 <body>
 
@@ -42,16 +63,21 @@
 
   <nav class="tabs tabs-bar" id="main-tabs" aria-label="Tool sections">
     <a class="tab-btn studio-link" href="/">← Studio</a>
-    <a class="tab-btn active" href="#calculator" data-tab="calculator">Calculator</a>
-    <a class="tab-btn" href="#catalog" data-tab="catalog">Catalog</a>
-    <a class="tab-btn" href="#inventory" data-tab="inventory">Inventory</a>
-    <a class="tab-btn" href="#settings" data-tab="settings">Settings</a>
+    <a class="tab-btn active" href="#calculator" data-tab="calculator" onclick="return window.__showTab('calculator')">Calculator</a>
+    <a class="tab-btn" href="#catalog" data-tab="catalog" onclick="return window.__showTab('catalog')">Catalog</a>
+    <a class="tab-btn" href="#inventory" data-tab="inventory" onclick="return window.__showTab('inventory')">Inventory</a>
+    <a class="tab-btn" href="#settings" data-tab="settings" onclick="return window.__showTab('settings')">Settings</a>
   </nav>
 
   <main class="content">
 
     <!-- CALCULATOR -->
     <section id="tab-calculator" class="tab-panel active">
+      <div class="quick-nav-note">
+        <button type="button" class="btn btn-primary" onclick="return window.__showTab('catalog')">Open Catalog →</button>
+        <button type="button" class="btn btn-ghost" onclick="return window.__showTab('inventory')">Inventory</button>
+        <button type="button" class="btn btn-ghost" onclick="return window.__showTab('settings')">Settings</button>
+      </div>
       <div class="calc-layout">
 
         <form id="product-form" class="card main-card">
@@ -533,28 +559,14 @@
 
 <div id="toast" class="toast hidden"></div>
 
-<script src="/tools/pricing/data.js?v=10"></script>
-<script src="/tools/pricing/app.js?v=10"></script>
+<script src="/tools/pricing/data.js?v=11"></script>
+<script src="/tools/pricing/app.js?v=11"></script>
 <script>
-  // Fallback: if main app failed, still allow hash tabs to show panels
-  (function () {
-    function basicShow(name) {
-      var allowed = { calculator: 1, catalog: 1, inventory: 1, settings: 1 };
-      if (!allowed[name]) name = "calculator";
-      document.querySelectorAll(".tab-panel").forEach(function (p) {
-        p.classList.toggle("active", p.id === "tab-" + name);
-      });
-      document.querySelectorAll(".tab-btn[data-tab]").forEach(function (b) {
-        b.classList.toggle("active", b.getAttribute("data-tab") === name);
-      });
-    }
-    document.querySelectorAll(".tab-btn[data-tab]").forEach(function (btn) {
-      btn.addEventListener("click", function () {
-        if (typeof window.showTab === "function") return;
-        basicShow(btn.getAttribute("data-tab"));
-      });
-    });
-  })();
+  // Ensure hash opens the right panel after full load
+  document.addEventListener("DOMContentLoaded", function () {
+    var h = String(location.hash || "").replace(/^#/, "");
+    if (h) window.__showTab(h);
+  });
 </script>
 </body>
 </html>

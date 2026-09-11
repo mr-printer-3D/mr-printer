@@ -399,27 +399,26 @@ function libraryColorById(id) {
 function showTab(tabName, opts) {
   const allowed = { calculator: 1, catalog: 1, inventory: 1, settings: 1 };
   const name = allowed[tabName] ? tabName : "calculator";
-  const panel = el("tab-" + name);
-  if (!panel) {
-    console.error("Missing tab panel:", name);
-    return;
+
+  // Always flip panels via the inline helper first (never blocked by later render errors)
+  if (typeof window.__showTab === "function") {
+    window.__showTab(name);
+  } else {
+    const panel = el("tab-" + name);
+    if (!panel) return;
+    document.querySelectorAll(".tab-btn[data-tab]").forEach((b) => {
+      b.classList.toggle("active", b.dataset.tab === name);
+    });
+    document.querySelectorAll(".tab-panel").forEach((p) => p.classList.remove("active"));
+    panel.classList.add("active");
   }
-  document.querySelectorAll(".tab-btn[data-tab]").forEach((b) => {
-    const on = b.dataset.tab === name;
-    b.classList.toggle("active", on);
-    b.setAttribute("aria-current", on ? "page" : "false");
-  });
-  document.querySelectorAll(".tab-panel").forEach((p) => p.classList.remove("active"));
-  panel.classList.add("active");
 
   if (!opts || opts.updateHash !== false) {
     const nextHash = "#" + name;
     if (location.hash !== nextHash) {
       try {
         history.replaceState(null, "", nextHash);
-      } catch (_) {
-        location.hash = name;
-      }
+      } catch (_) {}
     }
   }
 
@@ -448,8 +447,8 @@ function tabFromHash() {
 
 document.querySelectorAll(".tab-btn[data-tab]").forEach((btn) => {
   btn.addEventListener("click", (e) => {
-    // Keep real links working; still drive the panel switch
     e.preventDefault();
+    e.stopPropagation();
     showTab(btn.dataset.tab);
   });
 });
@@ -457,11 +456,6 @@ document.querySelectorAll(".tab-btn[data-tab]").forEach((btn) => {
 window.addEventListener("hashchange", () => {
   showTab(tabFromHash(), { updateHash: false });
 });
-
-// Open tab from URL hash on load (e.g. /tools/pricing#catalog)
-if (location.hash) {
-  // defer until functions below exist — call again at init
-}
 
 /* ---------------------------- Color rows ---------------------------- */
 
@@ -1029,7 +1023,9 @@ function renderPager(containerId, page, totalItems, setPageFn) {
 
 function renderCatalog() {
   const body = el("catalog-body");
-  const query = el("search-input").value.trim().toLowerCase();
+  if (!body) return;
+  const searchEl = el("search-input");
+  const query = searchEl ? String(searchEl.value || "").trim().toLowerCase() : "";
   renderStats();
 
   let rows = state.products.map((p) => ({ p, c: calculate(p) }));
