@@ -724,7 +724,21 @@ async function uploadPendingImages(sku, list) {
   } catch (_) {
     throw new Error("Drive upload returned non-JSON. Redeploy Apps Script (v8+).");
   }
-  if (!data.ok) throw new Error(data.error || "Drive upload failed");
+  if (!data.ok) {
+    const err = String(data.error || "Drive upload failed");
+    if (/permission|DriveApp|auth\/drive/i.test(err)) {
+      throw new Error(
+        "Apps Script needs Google Drive permission.\n\n" +
+          "1. Sheet → Extensions → Apps Script\n" +
+          "2. Paste latest google-apps-script.js\n" +
+          "3. Select authorizeDrive_ → Run → Allow Drive access\n" +
+          "4. Deploy → Manage deployments → Edit → New version\n" +
+          "5. Test connection (should show v9+)\n\n" +
+          err
+      );
+    }
+    throw new Error(err);
+  }
   const uploadedUrls = (data.files || []).map((f) => f.url).filter(Boolean);
   const kept = list.filter((x) => /^https?:\/\//i.test(x.url) && !x.pendingFile).map((x) => x.url);
   return normalizeImageList([...kept, ...uploadedUrls]);
@@ -2157,7 +2171,7 @@ function setSharedSyncUi(message, kind) {
   setSyncStatus(message);
 }
 
-const REQUIRED_SCRIPT_VERSION = 8;
+const REQUIRED_SCRIPT_VERSION = 9;
 let syncInFlight = null;
 let bootstrapDone = false;
 

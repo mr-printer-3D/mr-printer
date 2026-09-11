@@ -1,24 +1,45 @@
 /*
   ============================================================================
-  Mr. Printer Studio — Google Sheet Sync Bridge (Pricing + Inventory)
+  Mr. Printer Studio — Google Sheet Sync Bridge (Pricing + Inventory + Images)
   ============================================================================
   Paste into: Google Sheet → Extensions → Apps Script
+  Also set Project Settings → Show "appsscript.json" manifest to match
+  public/tools/pricing/appsscript.json (must include Drive scope).
+
   Deploy → New deployment → Web app
     Execute as: Me
     Who has access: Anyone
+
+  DRIVE PERMISSION (required for image upload):
+  1. In Apps Script, select function authorizeDrive_ → Run
+  2. Review permissions → Allow (Google Drive)
+  3. Deploy → Manage deployments → Edit → New version → Deploy
 
   Sheet:
   https://docs.google.com/spreadsheets/d/1HaJIjWntMd16vnSAFa9wASb_sWds2YwmrN4yGmGZ84M/edit
 
   API:
     GET  ?api=1
-    POST text/plain JSON → upsert | upsertMany | delete | replaceAll | repairHeaders
+    POST text/plain JSON → upsert | upsertMany | delete | replaceAll |
+         repairHeaders | uploadProductImages
   ============================================================================
 */
 
 var SHEET_NAME = "Pricing";
 /** Bump when fixing sync bugs — Test Connection shows this so you know the Web App is updated */
-var SCRIPT_VERSION = 8;
+var SCRIPT_VERSION = 9;
+
+/**
+ * Run this ONCE from the Apps Script editor (Run ▶) to grant Drive access.
+ * Without this, uploadProductImages fails with DriveApp.getFolderById permission error.
+ */
+function authorizeDrive_() {
+  // Touch Drive so Google shows the consent screen for drive scope
+  var folders = DriveApp.getRootFolder().getName();
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getName();
+  Logger.log("Authorized. Drive root=" + folders + " Sheet=" + sheet + " script v" + SCRIPT_VERSION);
+  return "OK — Drive + Sheets authorized. Now Deploy → New version.";
+}
 
 /** Official columns only — do not add extra headers in the sheet */
 var HEADERS = [
