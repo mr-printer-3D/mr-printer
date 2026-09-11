@@ -894,7 +894,7 @@ el("product-form").addEventListener("submit", (e) => {
   clearForm();
   renderCatalog();
   renderInventory();
-  document.querySelector('.tab-btn[data-tab="catalog"]').click();
+  showTab("catalog");
   showToast("Product saved locally…", "success");
   void syncUpsert(savedProduct).then((ok) => {
     if (ok) showToast("Product saved to shared sheet", "success");
@@ -913,7 +913,7 @@ function startEdit(id) {
   updateFormTitle();
   el("edit-badge").classList.remove("hidden");
   el("save-btn").textContent = "Update Product";
-  document.querySelector('.tab-btn[data-tab="calculator"]').click();
+  showTab("calculator");
   renderBreakdown();
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
