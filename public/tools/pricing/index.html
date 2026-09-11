@@ -18,14 +18,14 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;0,9..40,800;1,9..40,400&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap" rel="stylesheet" />
 <link rel="icon" type="image/png" href="/assets/logo.png" />
-<link rel="stylesheet" href="/tools/pricing/style.css" />
+<link rel="stylesheet" href="/tools/pricing/style.css?v=9" />
 </head>
 <body>
 
 <div class="app">
 
   <header class="topbar">
-    <div class="topbar-main">
+    <div class="topbar-left">
       <div class="brand">
         <img class="brand-mark" src="/assets/logo.png" alt="Mr. Printer logo" />
         <div class="brand-text">
@@ -38,12 +38,12 @@
         <button type="button" class="theme-btn" data-theme-set="dark" title="Dark theme">☾</button>
       </div>
     </div>
-    <nav class="tabs" aria-label="Tool sections">
+    <nav class="tabs" role="tablist" aria-label="Tool sections">
       <a class="tab-btn studio-link" href="/">← Studio</a>
-      <button class="tab-btn active" data-tab="calculator">Calculator</button>
-      <button class="tab-btn" data-tab="catalog">Catalog</button>
-      <button class="tab-btn" data-tab="inventory">Inventory</button>
-      <button class="tab-btn" data-tab="settings">Settings</button>
+      <button type="button" class="tab-btn active" role="tab" aria-selected="true" data-tab="calculator">Calculator</button>
+      <button type="button" class="tab-btn" role="tab" aria-selected="false" data-tab="catalog">Catalog</button>
+      <button type="button" class="tab-btn" role="tab" aria-selected="false" data-tab="inventory">Inventory</button>
+      <button type="button" class="tab-btn" role="tab" aria-selected="false" data-tab="settings">Settings</button>
     </nav>
   </header>
 
@@ -298,13 +298,13 @@
           </div>
           <div class="toolbar-actions">
             <button type="button" class="btn btn-ghost" id="restore-catalog-btn">Restore catalog</button>
-            <button class="btn btn-ghost" id="export-btn">Export pricing</button>
-            <button class="btn btn-ghost" id="export-shopify-btn">Export Shopify</button>
+            <button type="button" class="btn btn-ghost" id="export-btn">Export pricing</button>
+            <button type="button" class="btn btn-primary" id="export-shopify-btn">Export Shopify listing</button>
             <label class="btn btn-ghost file-btn">
               Import
               <input type="file" id="import-input" accept=".csv" hidden />
             </label>
-            <button class="btn btn-danger" id="clear-all-btn">Clear all</button>
+            <button type="button" class="btn btn-danger" id="clear-all-btn">Clear all</button>
           </div>
         </div>
         <div class="table-wrap">
@@ -532,7 +532,7 @@
 
 <div id="toast" class="toast hidden"></div>
 
-<script src="/tools/pricing/data.js?v=8"></script>
-<script src="/tools/pricing/app.js?v=8"></script>
+<script src="/tools/pricing/data.js?v=9"></script>
+<script src="/tools/pricing/app.js?v=9"></script>
 </body>
 </html>

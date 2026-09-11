@@ -84,14 +84,24 @@ body {
   border-bottom: 1px solid var(--border);
   position: sticky;
   top: 0;
-  z-index: 20;
+  z-index: 40;
+  flex-wrap: wrap;
 }
-.topbar-main {
-  display: contents;
+.topbar-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  flex: 1 1 auto;
 }
 .brand { min-width: 0; }
-.tabs { margin-left: auto; }
-.theme-switch { margin-left: 8px; }
+.tabs {
+  margin-left: auto;
+  position: relative;
+  z-index: 41;
+  pointer-events: auto;
+}
+.theme-switch { margin-left: 0; flex-shrink: 0; }
 
 .theme-switch {
   display: inline-flex;
@@ -185,24 +195,42 @@ body {
   border: 1px solid var(--border);
   flex-wrap: nowrap;
   flex-shrink: 0;
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 .tab-btn {
-  border: none;
-  background: transparent;
-  padding: 8px 14px;
+  border: 1px solid transparent;
+  background: var(--surface);
+  padding: 10px 16px;
   border-radius: 999px;
   font-size: 13px;
-  font-weight: 600;
-  color: var(--text-muted);
+  font-weight: 700;
+  color: var(--text);
   cursor: pointer;
   transition: all .18s ease;
   font-family: inherit;
   white-space: nowrap;
+  min-height: 40px;
+  pointer-events: auto;
+  position: relative;
+  z-index: 1;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
-.tab-btn:hover { color: var(--text); }
+.tab-btn:hover {
+  color: var(--text);
+  border-color: var(--border);
+  background: var(--primary-soft);
+}
+.tab-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
 .tab-btn.active {
   background: var(--primary);
   color: #fff;
+  border-color: var(--primary);
   box-shadow: 0 4px 12px rgba(36, 22, 16, 0.28);
 }
 a.tab-btn.studio-link {
@@ -210,8 +238,9 @@ a.tab-btn.studio-link {
   display: inline-flex;
   align-items: center;
   color: var(--accent-dark);
+  background: transparent;
 }
-a.tab-btn.studio-link:hover { color: var(--text); }
+a.tab-btn.studio-link:hover { color: var(--text); background: var(--primary-soft); }
 
 /* ---------- Layout ---------- */
 .content {
@@ -1094,7 +1123,7 @@ tbody tr:last-child td { border-bottom: none; }
     gap: 10px;
     padding: 10px 12px 12px;
   }
-  .topbar-main {
+  .topbar-left {
     display: flex;
     align-items: center;
     gap: 10px;
@@ -1129,9 +1158,10 @@ tbody tr:last-child td { border-bottom: none; }
   }
   .tabs::-webkit-scrollbar { display: none; }
   .tab-btn {
-    padding: 9px 12px;
-    font-size: 12.5px;
+    padding: 10px 14px;
+    font-size: 13px;
     flex: 0 0 auto;
+    min-height: 42px;
   }
 }
 

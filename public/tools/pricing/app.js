@@ -396,18 +396,40 @@ function libraryColorById(id) {
 
 /* ---------------------------- Tabs ---------------------------- */
 
-document.querySelectorAll(".tab-btn[data-tab]").forEach((btn) => {
-  btn.addEventListener("click", () => {
-    document.querySelectorAll(".tab-btn[data-tab]").forEach((b) => b.classList.remove("active"));
-    document.querySelectorAll(".tab-panel").forEach((p) => p.classList.remove("active"));
-    btn.classList.add("active");
-    el("tab-" + btn.dataset.tab).classList.add("active");
-    if (btn.dataset.tab === "catalog") renderCatalog();
-    if (btn.dataset.tab === "inventory") renderInventory();
-    if (btn.dataset.tab === "settings") {
+function showTab(tabName) {
+  const name = String(tabName || "calculator");
+  const panel = el("tab-" + name);
+  if (!panel) {
+    console.error("Missing tab panel:", name);
+    return;
+  }
+  document.querySelectorAll(".tab-btn[data-tab]").forEach((b) => {
+    const on = b.dataset.tab === name;
+    b.classList.toggle("active", on);
+    b.setAttribute("aria-selected", on ? "true" : "false");
+  });
+  document.querySelectorAll(".tab-panel").forEach((p) => p.classList.remove("active"));
+  panel.classList.add("active");
+  try {
+    if (name === "catalog") renderCatalog();
+    if (name === "inventory") renderInventory();
+    if (name === "settings") {
       renderSettingsForm();
       renderColorLibrary();
     }
+  } catch (err) {
+    console.error("Tab render failed:", name, err);
+  }
+  try {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  } catch (_) {}
+}
+
+document.querySelectorAll(".tab-btn[data-tab]").forEach((btn) => {
+  btn.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    showTab(btn.dataset.tab);
   });
 });
 
@@ -1367,21 +1389,25 @@ function shopifySlug(input) {
 
 if (el("export-shopify-btn")) {
   el("export-shopify-btn").addEventListener("click", () => {
-    if (!state.products.length) {
-      alert("No products to export.");
+    const products = (state.products || []).filter((p) => p && String(p.name || "").trim());
+    if (!products.length) {
+      alert("No products in catalog to export. Save products first, then export.");
       return;
     }
     const lines = [SHOPIFY_CSV_HEADERS.join(",")];
-    state.products.forEach((p) => {
+    let exported = 0;
+    products.forEach((p) => {
       const c = calculate(p);
       const handle = shopifySlug(p.sku || p.name);
       const colors = (p.colors || []).map((x) => x.name).filter(Boolean);
       const optionColors = colors.length ? colors : ["Default Title"];
       const useColor = !(optionColors.length === 1 && optionColors[0] === "Default Title");
-      const price = c.sellingPrice.toFixed(2);
-      const compare = c.mrp > c.sellingPrice ? c.mrp.toFixed(2) : "";
+      // Prefer selling price; fall back to Meesho/MRP so every product is listed
+      const sell = num(c.sellingPrice) || num(c.meesho) || num(c.mrp) || 0;
+      const price = sell.toFixed(2);
+      const compare = num(c.mrp) > sell ? num(c.mrp).toFixed(2) : "";
       const stock = (c.inventory.ritesh || 0) + (c.inventory.mayuri || 0);
-      const weight = Math.max(1, Math.round(c.totalWeight || 50));
+      const weight = Math.max(1, Math.round(num(c.totalWeight) || num(p.weight) || 50));
       const desc = p.dims
         ? `3D printed product · ${p.dims}`
         : "3D printed product from Mr. Printer Studio";
@@ -1413,7 +1439,7 @@ if (el("export-shopify-btn")) {
         set("URL handle", handle);
         set(
           "SKU",
-          optionColors.length > 1 ? `${p.sku}-${shopifySlug(color).slice(0, 12)}` : p.sku
+          optionColors.length > 1 ? `${p.sku || handle}-${shopifySlug(color).slice(0, 12)}` : p.sku || handle
         );
         if (useColor) {
           set("Option1 name", "Color");
@@ -1425,7 +1451,7 @@ if (el("export-shopify-btn")) {
         }
         set("Price", price);
         set("Compare-at price", compare);
-        set("Cost per item", c.finalTotalCost.toFixed(2));
+        set("Cost per item", num(c.finalTotalCost).toFixed(2));
         set("Charge tax", "TRUE");
         set("Inventory tracker", "shopify");
         set("Inventory quantity", stock);
@@ -1437,9 +1463,14 @@ if (el("export-shopify-btn")) {
         set("Gift card", "FALSE");
         lines.push(row.map(csvEscape).join(","));
       });
+      exported++;
     });
-    downloadFile("shopify-products.csv", lines.join("\n"));
-    showToast("Shopify product CSV downloaded", "success");
+    // BOM helps Excel open UTF-8 Shopify CSV correctly
+    downloadFile(
+      `shopify-products-${exported}.csv`,
+      "\uFEFF" + lines.join("\n")
+    );
+    showToast(`Shopify listing CSV · ${exported} product(s)`, "success");
   });
 }
 
