@@ -388,4 +388,5 @@ const DEFAULT_SETTINGS = {
   meeshoCommissionPct: 20,
   filamentColors: DEFAULT_FILAMENT_COLORS,
   sheetUrl: "https://script.google.com/macros/s/AKfycbyXDWFwa_m9LpCafNlMGptzHxpSY7JSQmnlK9D7cmPgyEVb5e2QtzMDQFh5jnZ7X6qHJA/exec",
+  driveFolderId: "1wjql3Yu4fNZJNolL780WKepimVuTKPoh",
 };

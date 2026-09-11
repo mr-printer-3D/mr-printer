@@ -276,6 +276,116 @@ a.tab-btn.studio-link:hover { color: var(--text); background: var(--primary-soft
 }
 .tab-panel { display: none !important; }
 .tab-panel.active { display: block !important; animation: fadeIn .22s ease; }
+
+.image-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: 10px;
+  margin: 10px 0 12px;
+}
+.image-tile {
+  position: relative;
+  aspect-ratio: 1;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+}
+.image-tile img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.image-tile .img-actions {
+  position: absolute;
+  inset: auto 4px 4px 4px;
+  display: flex;
+  gap: 4px;
+}
+.image-tile .img-actions button {
+  flex: 1;
+  border: none;
+  border-radius: 8px;
+  padding: 4px 0;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  background: rgba(20, 14, 8, 0.72);
+  color: #fff;
+}
+.image-tile .img-actions button.danger { background: rgba(192, 64, 44, 0.9); }
+.image-add-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.image-add-row input[type="url"] {
+  flex: 1;
+  min-width: 180px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px 10px;
+  font: inherit;
+  background: var(--input-bg);
+  color: var(--text);
+}
+.catalog-thumbs {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+.catalog-thumbs img {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  object-fit: cover;
+  border: 1px solid var(--border);
+}
+.catalog-thumbs .thumb-more {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 700;
+}
+.modal.hidden { display: none !important; }
+.modal {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+.modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(20, 14, 8, 0.45);
+}
+.modal-card {
+  position: relative;
+  z-index: 1;
+  width: min(560px, 100%);
+  max-height: min(90vh, 720px);
+  overflow: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  box-shadow: var(--shadow);
+  padding: 18px;
+}
+.modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.modal-head h3 {
+  margin: 0;
+  font-family: "Fraunces", Georgia, serif;
+  font-size: 20px;
+}
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(6px); }
   to { opacity: 1; transform: none; }

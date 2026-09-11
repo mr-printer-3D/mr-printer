@@ -18,7 +18,7 @@
 
 var SHEET_NAME = "Pricing";
 /** Bump when fixing sync bugs — Test Connection shows this so you know the Web App is updated */
-var SCRIPT_VERSION = 7;
+var SCRIPT_VERSION = 8;
 
 /** Official columns only — do not add extra headers in the sheet */
 var HEADERS = [
@@ -47,6 +47,11 @@ var HEADERS = [
   "mrpSource",
   "meesho",
   "meeshoSource",
+  "image1",
+  "image2",
+  "image3",
+  "image4",
+  "image5",
   "updatedAt",
 ];
 
@@ -185,6 +190,11 @@ function productToRow_(p) {
     mrpSource: p.mrpSource || "auto",
     meesho: p.meesho || 0,
     meeshoSource: p.meeshoSource || "auto",
+    image1: p.image1 || "",
+    image2: p.image2 || "",
+    image3: p.image3 || "",
+    image4: p.image4 || "",
+    image5: p.image5 || "",
     updatedAt: new Date().toISOString(),
   };
   return HEADERS.map(function (h) {

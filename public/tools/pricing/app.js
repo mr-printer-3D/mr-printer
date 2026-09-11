@@ -17,6 +17,11 @@ let sortDir = 1;
 let skuManual = false;
 let draftColors = []; // [{id, colorId, name, price, weight, swatch}]
 let draftCustomPack = []; // [{id, name, cost}]
+/** @type {{id:string,url:string,pendingFile?:File,preview?:string}[]} */
+let draftImages = [];
+let modalImages = [];
+let modalProductId = null;
+const MAX_PRODUCT_IMAGES = 5;
 const PAGE_SIZE = 50;
 let catalogPage = 1;
 let inventoryPage = 1;
@@ -24,9 +29,17 @@ let inventoryPage = 1;
 /* ---------------------------- Persistence ---------------------------- */
 
 function migrateProduct(p) {
+  const images = normalizeImageList(p.images || p.imageUrls || [
+    p.image1,
+    p.image2,
+    p.image3,
+    p.image4,
+    p.image5,
+  ]);
   return {
     ...p,
     colors: Array.isArray(p.colors) ? p.colors : [],
+    images,
     includeDesign: !!p.includeDesign || num(p.designHours) > 0,
     designHours: num(p.designHours),
     designRate: p.designRate != null ? num(p.designRate) : undefined,
@@ -48,6 +61,18 @@ function migrateProduct(p) {
       mayuri: num(p.inventory && p.inventory.mayuri),
     },
   };
+}
+
+function normalizeImageList(list) {
+  const arr = Array.isArray(list) ? list : [];
+  return arr
+    .map((x) => {
+      if (!x) return "";
+      if (typeof x === "string") return x.trim();
+      return String(x.url || x.src || "").trim();
+    })
+    .filter((u) => /^https?:\/\//i.test(u) || u.startsWith("data:image/"))
+    .slice(0, MAX_PRODUCT_IMAGES);
 }
 
 function loadState() {
@@ -605,6 +630,159 @@ el("custom-pack-list").addEventListener("input", (e) => {
   renderBreakdown();
 });
 
+/* ---------------------------- Product images ---------------------------- */
+
+function getDriveFolderId() {
+  return String(state.settings.driveFolderId || DEFAULT_SETTINGS.driveFolderId || "").trim();
+}
+
+function renderImageGrid(containerId, list, opts) {
+  const box = el(containerId);
+  if (!box) return;
+  const canEdit = !opts || opts.editable !== false;
+  if (!list.length) {
+    box.innerHTML = `<div class="empty-state" style="padding:14px;grid-column:1/-1">No images yet</div>`;
+    return;
+  }
+  box.innerHTML = list
+    .map((img, idx) => {
+      const src = img.preview || img.url || "";
+      return `<div class="image-tile" data-idx="${idx}">
+        <img src="${escapeHtml(src)}" alt="Product image ${idx + 1}" />
+        ${
+          canEdit
+            ? `<div class="img-actions">
+          <button type="button" data-img-act="replace" data-idx="${idx}">Edit</button>
+          <button type="button" class="danger" data-img-act="remove" data-idx="${idx}">Del</button>
+        </div>`
+            : ""
+        }
+      </div>`;
+    })
+    .join("");
+}
+
+function renderDraftImages() {
+  renderImageGrid("product-images", draftImages, { editable: true });
+}
+
+function renderModalImages() {
+  renderImageGrid("image-modal-grid", modalImages, { editable: true });
+}
+
+async function fileToJpegDataUrl(file, maxSide = 1600, quality = 0.86) {
+  const bitmap = await createImageBitmap(file);
+  const scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
+  const w = Math.max(1, Math.round(bitmap.width * scale));
+  const h = Math.max(1, Math.round(bitmap.height * scale));
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  ctx.drawImage(bitmap, 0, 0, w, h);
+  try {
+    bitmap.close();
+  } catch (_) {}
+  return canvas.toDataURL("image/jpeg", quality);
+}
+
+async function uploadPendingImages(sku, list) {
+  const pending = list.filter((x) => x.pendingFile || (x.url && x.url.startsWith("data:image/")));
+  if (!pending.length) {
+    return list.map((x) => x.url).filter((u) => /^https?:\/\//i.test(u));
+  }
+  const folderId = getDriveFolderId();
+  const scriptUrl = getSheetUrl();
+  if (!folderId || !scriptUrl) {
+    throw new Error("Drive folder / Apps Script URL missing in Settings.");
+  }
+  const files = [];
+  for (let i = 0; i < pending.length; i++) {
+    const item = pending[i];
+    let dataUrl = item.url;
+    if (item.pendingFile) dataUrl = await fileToJpegDataUrl(item.pendingFile);
+    files.push({
+      name: `${sku}-${Date.now()}-${i + 1}.jpg`,
+      mimeType: "image/jpeg",
+      base64: dataUrl,
+    });
+  }
+  const res = await fetch(scriptUrl, {
+    method: "POST",
+    headers: { "Content-Type": "text/plain;charset=utf-8" },
+    body: JSON.stringify({
+      action: "uploadProductImages",
+      parentFolderId: folderId,
+      sku: String(sku || "product").replace(/[\\/:*?"<>|]/g, "-"),
+      files,
+    }),
+  });
+  const text = await res.text();
+  let data;
+  try {
+    data = JSON.parse(text);
+  } catch (_) {
+    throw new Error("Drive upload returned non-JSON. Redeploy Apps Script (v8+).");
+  }
+  if (!data.ok) throw new Error(data.error || "Drive upload failed");
+  const uploadedUrls = (data.files || []).map((f) => f.url).filter(Boolean);
+  const kept = list.filter((x) => /^https?:\/\//i.test(x.url) && !x.pendingFile).map((x) => x.url);
+  return normalizeImageList([...kept, ...uploadedUrls]);
+}
+
+function addImageUrlToList(list, url) {
+  const u = String(url || "").trim();
+  if (!/^https?:\/\//i.test(u)) {
+    alert("Enter a valid http(s) image URL.");
+    return list;
+  }
+  if (list.length >= MAX_PRODUCT_IMAGES) {
+    alert("Maximum " + MAX_PRODUCT_IMAGES + " images per product.");
+    return list;
+  }
+  return list.concat([{ id: "img-" + Date.now(), url: u }]);
+}
+
+async function addFilesToList(list, fileList) {
+  const files = Array.from(fileList || []);
+  let next = list.slice();
+  for (const file of files) {
+    if (next.length >= MAX_PRODUCT_IMAGES) break;
+    if (!file.type.startsWith("image/")) continue;
+    const preview = await fileToJpegDataUrl(file, 480, 0.7);
+    next.push({
+      id: "img-" + Date.now() + "-" + Math.random().toString(36).slice(2, 6),
+      url: preview,
+      preview,
+      pendingFile: file,
+    });
+  }
+  return next.slice(0, MAX_PRODUCT_IMAGES);
+}
+
+function openImageModal(productId) {
+  const p = state.products.find((x) => x.id === productId);
+  if (!p) return;
+  modalProductId = productId;
+  modalImages = (p.images || []).map((url, i) => ({
+    id: "m-" + i,
+    url,
+    preview: url,
+  }));
+  el("image-modal-title").textContent = "Images · " + (p.name || p.sku || "Product");
+  el("image-modal-sub").textContent = "SKU " + (p.sku || "—") + " · up to " + MAX_PRODUCT_IMAGES + " photos";
+  renderModalImages();
+  el("image-modal").classList.remove("hidden");
+  el("image-modal").setAttribute("aria-hidden", "false");
+}
+
+function closeImageModal() {
+  modalProductId = null;
+  modalImages = [];
+  el("image-modal").classList.add("hidden");
+  el("image-modal").setAttribute("aria-hidden", "true");
+}
+
 /* ---------------------------- Form <-> State ---------------------------- */
 
 function getFormProduct() {
@@ -647,6 +825,7 @@ function getFormProduct() {
         weight: num(c.weight),
         swatch: c.swatch,
       })),
+    images: draftImages.map((x) => x.url).filter(Boolean),
     mrp: el("f-mrp").value,
     meesho: el("f-meesho").value,
   };
@@ -711,8 +890,14 @@ function setFormFromProduct(p) {
     name: x.name || "",
     cost: x.cost,
   }));
+  draftImages = (p.images || []).map((url, i) => ({
+    id: "img-edit-" + i,
+    url,
+    preview: url,
+  }));
   renderColorRows();
   renderCustomPackRows();
+  renderDraftImages();
   updatePackLabels();
   renderFixedRates();
 }
@@ -781,6 +966,7 @@ function clearForm() {
   skuManual = false;
   draftColors = [];
   draftCustomPack = [];
+  draftImages = [];
   el("product-form").reset();
   el("f-sku").value = "";
   el("f-name").value = "";
@@ -789,6 +975,7 @@ function clearForm() {
   el("f-hours").value = "";
   el("f-mrp").value = "";
   el("f-meesho").value = "";
+  if (el("f-image-url")) el("f-image-url").value = "";
   el("f-designhours").value = 0;
   el("f-include-design").checked = false;
   el("design-fields").classList.add("hidden");
@@ -800,6 +987,7 @@ function clearForm() {
   setFormFromDefaults();
   renderColorRows();
   renderCustomPackRows();
+  renderDraftImages();
   updateFormTitle();
   el("edit-badge").classList.add("hidden");
   el("save-btn").textContent = "Save to Catalog";
@@ -875,7 +1063,7 @@ el("product-form").addEventListener("change", renderBreakdown);
 
 /* ---------------------------- Save / Edit / Delete ---------------------------- */
 
-el("product-form").addEventListener("submit", (e) => {
+el("product-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   const p = getFormProduct();
   if (!p.name || p.printHours === "" || p.weight === "") {
@@ -884,6 +1072,27 @@ el("product-form").addEventListener("submit", (e) => {
   }
 
   const colorWeight = (p.colors || []).reduce((s, c) => s + num(c.weight), 0);
+  let imageUrls = normalizeImageList(p.images);
+  const saveBtn = el("save-btn");
+  const prevLabel = saveBtn.textContent;
+  try {
+    if (draftImages.some((x) => x.pendingFile || String(x.url || "").startsWith("data:image/"))) {
+      saveBtn.disabled = true;
+      saveBtn.textContent = "Uploading images…";
+      const sku = String(p.sku || "").trim() || generateSku(p.name, editingId);
+      imageUrls = await uploadPendingImages(sku, draftImages);
+    }
+  } catch (err) {
+    console.error(err);
+    alert("Could not upload images: " + (err.message || err));
+    saveBtn.disabled = false;
+    saveBtn.textContent = prevLabel;
+    return;
+  } finally {
+    saveBtn.disabled = false;
+    saveBtn.textContent = prevLabel;
+  }
+
   const clean = migrateProduct({
     ...p,
     weight: num(p.weight) || colorWeight,
@@ -895,6 +1104,7 @@ el("product-form").addEventListener("submit", (e) => {
     shipping: num(p.shipping),
     marginPct: num(p.marginPct),
     packagingCustom: p.packagingCustom || [],
+    images: imageUrls,
     mrp: p.mrp === "" ? null : num(p.mrp),
     meesho: p.meesho === "" ? null : num(p.meesho),
     inventory: {
@@ -926,6 +1136,104 @@ el("product-form").addEventListener("submit", (e) => {
 });
 
 el("clear-btn").addEventListener("click", clearForm);
+
+if (el("add-image-url-btn")) {
+  el("add-image-url-btn").addEventListener("click", () => {
+    draftImages = addImageUrlToList(draftImages, el("f-image-url").value);
+    el("f-image-url").value = "";
+    renderDraftImages();
+  });
+}
+if (el("f-image-file")) {
+  el("f-image-file").addEventListener("change", async (e) => {
+    draftImages = await addFilesToList(draftImages, e.target.files);
+    e.target.value = "";
+    renderDraftImages();
+  });
+}
+if (el("product-images")) {
+  el("product-images").addEventListener("click", async (e) => {
+    const btn = e.target.closest("[data-img-act]");
+    if (!btn) return;
+    const idx = num(btn.dataset.idx);
+    const act = btn.dataset.imgAct;
+    if (act === "remove") {
+      draftImages = draftImages.filter((_, i) => i !== idx);
+      renderDraftImages();
+      return;
+    }
+    if (act === "replace") {
+      const url = prompt("Paste new image URL (or Cancel and use Upload above)", draftImages[idx]?.url || "");
+      if (url == null) return;
+      if (!/^https?:\/\//i.test(url.trim())) {
+        alert("Need a valid http(s) URL.");
+        return;
+      }
+      draftImages[idx] = { id: draftImages[idx].id, url: url.trim(), preview: url.trim() };
+      renderDraftImages();
+    }
+  });
+}
+
+if (el("image-modal")) {
+  el("image-modal").addEventListener("click", (e) => {
+    if (e.target.closest("[data-close-modal]")) closeImageModal();
+  });
+  el("image-modal-grid").addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-img-act]");
+    if (!btn) return;
+    const idx = num(btn.dataset.idx);
+    const act = btn.dataset.imgAct;
+    if (act === "remove") {
+      modalImages = modalImages.filter((_, i) => i !== idx);
+      renderModalImages();
+    } else if (act === "replace") {
+      const url = prompt("Paste new image URL", modalImages[idx]?.url || "");
+      if (url == null) return;
+      if (!/^https?:\/\//i.test(url.trim())) {
+        alert("Need a valid http(s) URL.");
+        return;
+      }
+      modalImages[idx] = { id: modalImages[idx].id, url: url.trim(), preview: url.trim() };
+      renderModalImages();
+    }
+  });
+  el("modal-add-url-btn").addEventListener("click", () => {
+    modalImages = addImageUrlToList(modalImages, el("modal-image-url").value);
+    el("modal-image-url").value = "";
+    renderModalImages();
+  });
+  el("modal-image-file").addEventListener("change", async (e) => {
+    modalImages = await addFilesToList(modalImages, e.target.files);
+    e.target.value = "";
+    renderModalImages();
+  });
+  el("modal-save-images-btn").addEventListener("click", async () => {
+    if (!modalProductId) return;
+    const idx = state.products.findIndex((x) => x.id === modalProductId);
+    if (idx === -1) return;
+    const p = state.products[idx];
+    const btn = el("modal-save-images-btn");
+    const prev = btn.textContent;
+    try {
+      btn.disabled = true;
+      btn.textContent = "Saving…";
+      const urls = await uploadPendingImages(p.sku || p.name, modalImages);
+      state.products[idx] = { ...p, images: urls };
+      saveState();
+      renderCatalog();
+      closeImageModal();
+      showToast("Images saved", "success");
+      void syncUpsert(state.products[idx]);
+    } catch (err) {
+      console.error(err);
+      alert("Could not save images: " + (err.message || err));
+    } finally {
+      btn.disabled = false;
+      btn.textContent = prev;
+    }
+  });
+}
 
 function startEdit(id) {
   const p = state.products.find((x) => x.id === id);
@@ -1051,7 +1359,7 @@ function renderCatalog() {
       state.products.length === 0
         ? "No products yet. Use Restore catalog, or add one from the Calculator tab."
         : "No products match your search.";
-    body.innerHTML = `<tr><td colspan="7"><div class="empty-state">${msg}</div></td></tr>`;
+    body.innerHTML = `<tr><td colspan="8"><div class="empty-state">${msg}</div></td></tr>`;
     renderPager("catalog-pager", 1, 0, () => {});
     return;
   }
@@ -1066,12 +1374,22 @@ function renderCatalog() {
   body.innerHTML = pageRows
     .map(({ p, c }) => {
       const margin = c.finalTotalCost > 0 ? ((c.profit / c.finalTotalCost) * 100).toFixed(0) : 0;
+      const imgs = p.images || [];
+      const thumbs = imgs
+        .slice(0, 3)
+        .map((u) => `<img src="${escapeHtml(u)}" alt="" />`)
+        .join("");
+      const more = imgs.length > 3 ? `<span class="thumb-more">+${imgs.length - 3}</span>` : "";
       return `
       <tr>
         <td>
           <div class="prod-name">${escapeHtml(p.name)}</div>
           <div class="prod-sub">${p.sku ? escapeHtml(p.sku) + " · " : ""}MRP ${inr(c.mrp)}</div>
           ${colorDots(p.colors)}
+        </td>
+        <td>
+          <div class="catalog-thumbs">${thumbs || "<span class='thumb-more'>None</span>"}${more}</div>
+          <button type="button" class="btn btn-sm btn-ghost" style="margin-top:6px" onclick="openImageModal('${p.id}')">Images</button>
         </td>
         <td class="muted-cell">${c.totalWeight.toFixed(1)} g</td>
         <td class="muted-cell">${inr(c.finalTotalCost)}</td>
@@ -1460,6 +1778,12 @@ if (el("export-shopify-btn")) {
           );
           set("Google Shopping / Condition", "New");
           set("Google Shopping / Custom product", "FALSE");
+          const imgs = normalizeImageList(p.images);
+          if (imgs[0]) {
+            set("Product image URL", imgs[0]);
+            set("Image position", "1");
+            set("Image alt text", p.name);
+          }
         }
         set("URL handle", handle);
         set(
@@ -1488,6 +1812,22 @@ if (el("export-shopify-btn")) {
         set("Gift card", "FALSE");
         lines.push(row.map(csvEscape).join(","));
       });
+
+      normalizeImageList(p.images)
+        .slice(1)
+        .forEach((url, idx) => {
+          const row = SHOPIFY_CSV_HEADERS.map(() => "");
+          const set = (key, val) => {
+            const i = SHOPIFY_CSV_HEADERS.indexOf(key);
+            if (i >= 0) row[i] = val == null ? "" : String(val);
+          };
+          set("URL handle", handle);
+          set("Product image URL", url);
+          set("Image position", String(idx + 2));
+          set("Image alt text", `${p.name} ${idx + 2}`);
+          lines.push(row.map(csvEscape).join(","));
+        });
+
       exported++;
     });
     // BOM helps Excel open UTF-8 Shopify CSV correctly
@@ -1817,7 +2157,7 @@ function setSharedSyncUi(message, kind) {
   setSyncStatus(message);
 }
 
-const REQUIRED_SCRIPT_VERSION = 7;
+const REQUIRED_SCRIPT_VERSION = 8;
 let syncInFlight = null;
 let bootstrapDone = false;
 
@@ -1886,6 +2226,7 @@ async function sheetGetAll() {
 
 function productForSync(p) {
   const c = calculate(p);
+  const imgs = normalizeImageList(p.images);
   return {
     id: p.id,
     sku: p.sku || "",
@@ -1912,6 +2253,11 @@ function productForSync(p) {
     mrpSource: c.mrpIsCustom ? "manual" : "auto",
     meesho: round2(c.meesho),
     meeshoSource: c.meeshoIsCustom ? "manual" : "auto",
+    image1: imgs[0] || "",
+    image2: imgs[1] || "",
+    image3: imgs[2] || "",
+    image4: imgs[3] || "",
+    image5: imgs[4] || "",
   };
 }
 
@@ -2008,6 +2354,7 @@ function remoteToProduct(r) {
     marginPct: num(r.marginPct) || state.settings.marginPct,
     mrp: r.mrpSource === "manual" ? num(r.mrp) : null,
     meesho: r.meeshoSource === "manual" ? num(r.meesho) : null,
+    images: [r.image1, r.image2, r.image3, r.image4, r.image5],
   });
 }
 
@@ -2393,6 +2740,7 @@ applyTheme(state.settings.theme || "light");
 renderSettingsForm();
 renderColorLibrary();
 clearForm();
+renderDraftImages();
 renderCatalog();
 renderInventory();
 ensureSheetUrlSaved();
@@ -2408,6 +2756,7 @@ document.addEventListener("visibilitychange", () => {
 
 // Expose for inline handlers
 window.showTab = showTab;
+window.openImageModal = openImageModal;
 window.startEdit = startEdit;
 window.duplicateProduct = duplicateProduct;
 window.deleteProduct = deleteProduct;
