@@ -396,8 +396,9 @@ function libraryColorById(id) {
 
 /* ---------------------------- Tabs ---------------------------- */
 
-function showTab(tabName) {
-  const name = String(tabName || "calculator");
+function showTab(tabName, opts) {
+  const allowed = { calculator: 1, catalog: 1, inventory: 1, settings: 1 };
+  const name = allowed[tabName] ? tabName : "calculator";
   const panel = el("tab-" + name);
   if (!panel) {
     console.error("Missing tab panel:", name);
@@ -406,10 +407,22 @@ function showTab(tabName) {
   document.querySelectorAll(".tab-btn[data-tab]").forEach((b) => {
     const on = b.dataset.tab === name;
     b.classList.toggle("active", on);
-    b.setAttribute("aria-selected", on ? "true" : "false");
+    b.setAttribute("aria-current", on ? "page" : "false");
   });
   document.querySelectorAll(".tab-panel").forEach((p) => p.classList.remove("active"));
   panel.classList.add("active");
+
+  if (!opts || opts.updateHash !== false) {
+    const nextHash = "#" + name;
+    if (location.hash !== nextHash) {
+      try {
+        history.replaceState(null, "", nextHash);
+      } catch (_) {
+        location.hash = name;
+      }
+    }
+  }
+
   try {
     if (name === "catalog") renderCatalog();
     if (name === "inventory") renderInventory();
@@ -425,13 +438,30 @@ function showTab(tabName) {
   } catch (_) {}
 }
 
+function tabFromHash() {
+  const h = String(location.hash || "")
+    .replace(/^#/, "")
+    .trim()
+    .toLowerCase();
+  return h || "calculator";
+}
+
 document.querySelectorAll(".tab-btn[data-tab]").forEach((btn) => {
   btn.addEventListener("click", (e) => {
+    // Keep real links working; still drive the panel switch
     e.preventDefault();
-    e.stopPropagation();
     showTab(btn.dataset.tab);
   });
 });
+
+window.addEventListener("hashchange", () => {
+  showTab(tabFromHash(), { updateHash: false });
+});
+
+// Open tab from URL hash on load (e.g. /tools/pricing#catalog)
+if (location.hash) {
+  // defer until functions below exist — call again at init
+}
 
 /* ---------------------------- Color rows ---------------------------- */
 
@@ -2371,6 +2401,7 @@ clearForm();
 renderCatalog();
 renderInventory();
 ensureSheetUrlSaved();
+showTab(tabFromHash(), { updateHash: false });
 bootstrapSharedCatalog();
 
 // Re-sync when returning to the tab — merge so neither partner loses local-only rows
@@ -2381,6 +2412,7 @@ document.addEventListener("visibilitychange", () => {
 });
 
 // Expose for inline handlers
+window.showTab = showTab;
 window.startEdit = startEdit;
 window.duplicateProduct = duplicateProduct;
 window.deleteProduct = deleteProduct;

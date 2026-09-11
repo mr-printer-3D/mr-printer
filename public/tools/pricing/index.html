@@ -18,7 +18,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;0,9..40,800;1,9..40,400&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap" rel="stylesheet" />
 <link rel="icon" type="image/png" href="/assets/logo.png" />
-<link rel="stylesheet" href="/tools/pricing/style.css?v=9" />
+<link rel="stylesheet" href="/tools/pricing/style.css?v=10" />
 </head>
 <body>
 
@@ -38,14 +38,15 @@
         <button type="button" class="theme-btn" data-theme-set="dark" title="Dark theme">☾</button>
       </div>
     </div>
-    <nav class="tabs" role="tablist" aria-label="Tool sections">
-      <a class="tab-btn studio-link" href="/">← Studio</a>
-      <button type="button" class="tab-btn active" role="tab" aria-selected="true" data-tab="calculator">Calculator</button>
-      <button type="button" class="tab-btn" role="tab" aria-selected="false" data-tab="catalog">Catalog</button>
-      <button type="button" class="tab-btn" role="tab" aria-selected="false" data-tab="inventory">Inventory</button>
-      <button type="button" class="tab-btn" role="tab" aria-selected="false" data-tab="settings">Settings</button>
-    </nav>
   </header>
+
+  <nav class="tabs tabs-bar" id="main-tabs" aria-label="Tool sections">
+    <a class="tab-btn studio-link" href="/">← Studio</a>
+    <a class="tab-btn active" href="#calculator" data-tab="calculator">Calculator</a>
+    <a class="tab-btn" href="#catalog" data-tab="catalog">Catalog</a>
+    <a class="tab-btn" href="#inventory" data-tab="inventory">Inventory</a>
+    <a class="tab-btn" href="#settings" data-tab="settings">Settings</a>
+  </nav>
 
   <main class="content">
 
@@ -532,7 +533,28 @@
 
 <div id="toast" class="toast hidden"></div>
 
-<script src="/tools/pricing/data.js?v=9"></script>
-<script src="/tools/pricing/app.js?v=9"></script>
+<script src="/tools/pricing/data.js?v=10"></script>
+<script src="/tools/pricing/app.js?v=10"></script>
+<script>
+  // Fallback: if main app failed, still allow hash tabs to show panels
+  (function () {
+    function basicShow(name) {
+      var allowed = { calculator: 1, catalog: 1, inventory: 1, settings: 1 };
+      if (!allowed[name]) name = "calculator";
+      document.querySelectorAll(".tab-panel").forEach(function (p) {
+        p.classList.toggle("active", p.id === "tab-" + name);
+      });
+      document.querySelectorAll(".tab-btn[data-tab]").forEach(function (b) {
+        b.classList.toggle("active", b.getAttribute("data-tab") === name);
+      });
+    }
+    document.querySelectorAll(".tab-btn[data-tab]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        if (typeof window.showTab === "function") return;
+        basicShow(btn.getAttribute("data-tab"));
+      });
+    });
+  })();
+</script>
 </body>
 </html>
