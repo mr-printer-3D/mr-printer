@@ -726,14 +726,16 @@ async function uploadPendingImages(sku, list) {
   }
   if (!data.ok) {
     const err = String(data.error || "Drive upload failed");
-    if (/permission|DriveApp|auth\/drive/i.test(err)) {
+    if (/permission|DriveApp|auth\/drive|Authorization/i.test(err)) {
       throw new Error(
-        "Apps Script needs Google Drive permission.\n\n" +
-          "1. Sheet → Extensions → Apps Script\n" +
-          "2. Paste latest google-apps-script.js\n" +
-          "3. Select authorizeDrive → Run → Allow Drive access\n" +
-          "4. Deploy → Manage deployments → Edit → New version\n" +
-          "5. Test connection (should show v9+)\n\n" +
+        "Google Drive is not authorized on the Apps Script Web App yet.\n\n" +
+          "Do ALL of these:\n" +
+          "1. Apps Script → Project Settings (gear) → turn ON “Show appsscript.json”\n" +
+          "2. Open appsscript.json → add scope https://www.googleapis.com/auth/drive\n" +
+          "3. Save → select authorizeDrive → Run ▶ → Allow Drive\n" +
+          "4. Deploy → Manage deployments → Edit → New version → Deploy\n" +
+          "5. Settings → Test connection must show Drive: OK (v10+)\n\n" +
+          "Also share the Drive parent folder with the SAME Google account that owns the script (Editor).\n\n" +
           err
       );
     }
@@ -2171,7 +2173,7 @@ function setSharedSyncUi(message, kind) {
   setSyncStatus(message);
 }
 
-const REQUIRED_SCRIPT_VERSION = 9;
+const REQUIRED_SCRIPT_VERSION = 10;
 let syncInFlight = null;
 let bootstrapDone = false;
 
@@ -2649,21 +2651,36 @@ el("test-connection-btn").addEventListener("click", async () => {
       }
     }
 
+    let driveOk = false;
+    let driveMsg = "not checked";
+    try {
+      const driveRes = await sheetPost({ action: "pingDrive" });
+      driveOk = !!(driveRes && driveRes.drive && driveRes.ok !== false);
+      driveMsg = driveOk
+        ? `OK (${driveRes.parentName || "folder"})`
+        : String(driveRes.error || "Drive denied");
+    } catch (driveErr) {
+      driveMsg = driveErr.message || "Drive ping failed";
+    }
+
     const verOk = ver >= REQUIRED_SCRIPT_VERSION;
-    setSyncStatus(verOk ? `Connected ✓ script v${ver}` : `Connected — old script v${ver || "?"}`);
-    alert(
+    setSyncStatus(
       verOk
-        ? `Connected! Apps Script v${ver}. Found ${products.length} product row(s).`
-        : `This browser is still hitting an OLD Web App (v${ver || "unknown"}; need v${REQUIRED_SCRIPT_VERSION}+).\n\n` +
-            `Same Gmail does not matter — each browser stores its own URL.\n\n` +
-            `Fix for Ritesh:\n` +
-            `1. Hard-refresh (Ctrl+Shift+R)\n` +
-            `2. Open the sheet → Apps Script → Deploy → Manage deployments\n` +
-            `3. Copy the Web App URL from the latest deployment (v7+)\n` +
-            `4. Paste it into Pricing → Settings → Apps Script Web App URL → Save\n` +
-            `5. Test connection again\n\n` +
-            `URL currently used:\n${url}\n\n` +
-            `Found ${products.length} product row(s).`
+        ? `Connected ✓ v${ver} · Drive: ${driveOk ? "OK" : "NO"}`
+        : `Connected — old script v${ver || "?"} · Drive: ${driveOk ? "OK" : "NO"}`
+    );
+    alert(
+      (verOk
+        ? `Connected! Apps Script v${ver}.\nProducts: ${products.length}\nDrive: ${driveMsg}\n`
+        : `OLD Web App (v${ver || "unknown"}; need v${REQUIRED_SCRIPT_VERSION}+).\nProducts: ${products.length}\nDrive: ${driveMsg}\n`) +
+        (driveOk
+          ? "\nImage upload should work."
+          : "\nDrive NOT authorized. In Apps Script:\n" +
+            "1. Project Settings → Show appsscript.json\n" +
+            "2. Add scope https://www.googleapis.com/auth/drive\n" +
+            "3. Run authorizeDrive → Allow\n" +
+            "4. Deploy → New version\n") +
+        `\nURL:\n${url}`
     );
   } catch (err) {
     console.error(err);

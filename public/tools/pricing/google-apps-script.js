@@ -27,18 +27,59 @@
 
 var SHEET_NAME = "Pricing";
 /** Bump when fixing sync bugs — Test Connection shows this so you know the Web App is updated */
-var SCRIPT_VERSION = 9;
+var SCRIPT_VERSION = 10;
+
+/** Same Drive parent used by listing images / Meesho */
+var DEFAULT_DRIVE_PARENT_ID = "1wjql3Yu4fNZJNolL780WKepimVuTKPoh";
 
 /**
- * Run this ONCE from the Apps Script editor (select authorizeDrive → Run ▶)
- * to grant Drive access. Without this, image upload fails with DriveApp permission error.
+ * Run this ONCE from the Apps Script editor:
+ *   1) Project Settings (gear) → enable "Show appsscript.json manifest file in editor"
+ *   2) Open appsscript.json and ensure oauthScopes includes:
+ *        "https://www.googleapis.com/auth/drive"
+ *        "https://www.googleapis.com/auth/spreadsheets"
+ *   3) Select authorizeDrive → Run ▶ → Allow (must list Google Drive)
+ *   4) Deploy → Manage deployments → Edit → New version → Deploy
+ *   5) Pricing Settings → Test connection → v10+ and Drive: OK
  */
 function authorizeDrive() {
-  // Touch Drive so Google shows the consent screen for drive scope
-  var folders = DriveApp.getRootFolder().getName();
+  var root = DriveApp.getRootFolder().getName();
   var sheet = SpreadsheetApp.getActiveSpreadsheet().getName();
-  Logger.log("Authorized. Drive root=" + folders + " Sheet=" + sheet + " script v" + SCRIPT_VERSION);
-  return "OK — Drive + Sheets authorized. Now Deploy → New version.";
+  var parent = DriveApp.getFolderById(DEFAULT_DRIVE_PARENT_ID);
+  var testName = "_auth_test_" + Date.now();
+  var testFolder = parent.createFolder(testName);
+  testFolder.setTrashed(true);
+  var msg =
+    "OK — Drive + Sheets authorized.\nRoot: " +
+    root +
+    "\nSheet: " +
+    sheet +
+    "\nParent folder: " +
+    parent.getName() +
+    "\nScript v" +
+    SCRIPT_VERSION +
+    "\n\nNow: Deploy → Manage deployments → Edit → New version → Deploy";
+  try {
+    SpreadsheetApp.getUi().alert(msg);
+  } catch (e) {
+    Logger.log(msg);
+  }
+  return msg;
+}
+
+function pingDrive_() {
+  try {
+    var parent = DriveApp.getFolderById(DEFAULT_DRIVE_PARENT_ID);
+    return {
+      ok: true,
+      drive: true,
+      parentName: parent.getName(),
+      parentId: DEFAULT_DRIVE_PARENT_ID,
+      root: DriveApp.getRootFolder().getName(),
+    };
+  } catch (err) {
+    return { ok: false, drive: false, error: String(err) };
+  }
 }
 
 /** Official columns only — do not add extra headers in the sheet */
@@ -314,6 +355,20 @@ function doPost(e) {
     var body = e && e.postData && e.postData.contents ? e.postData.contents : "{}";
     var data = JSON.parse(body);
     var action = data.action;
+
+    if (action === "pingDrive") {
+      var driveInfo = pingDrive_();
+      return jsonOut_({
+        ok: !!driveInfo.ok,
+        action: "pingDrive",
+        scriptVersion: SCRIPT_VERSION,
+        drive: driveInfo.drive,
+        parentName: driveInfo.parentName || "",
+        parentId: driveInfo.parentId || "",
+        error: driveInfo.error || "",
+      });
+    }
+
     var sheet = getSheet_();
 
     if (action === "repairHeaders") {
