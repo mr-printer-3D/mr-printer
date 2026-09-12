@@ -18,7 +18,14 @@ const ALIASES: Record<string, string[]> = {
     "item_name",
   ],
   description: ["description", "desc", "product_description", "details", "dims"],
-  category: ["category", "meesho_category", "cat", "product_category"],
+  category: [
+    "collections",
+    "collection",
+    "category",
+    "meesho_category",
+    "cat",
+    "product_category",
+  ],
   /** Prefer Meesho listing price, then selling price from pricing tool */
   price: [
     "meesho",
@@ -191,13 +198,30 @@ export function rowsToProducts(
       pick(raw, "description") ||
       (dims ? `3D printed · ${dims}` : "3D printed product from Mr. Printer Studio");
 
+    const collectionsRaw = pick(raw, "category");
+    let category = "Home Decor";
+    if (collectionsRaw) {
+      if (collectionsRaw.trim().startsWith("[")) {
+        try {
+          const parsed = JSON.parse(collectionsRaw);
+          if (Array.isArray(parsed) && parsed.length) {
+            category = String(parsed[0]).trim() || category;
+          }
+        } catch {
+          category = collectionsRaw.split(/[;,|]/)[0]?.trim() || category;
+        }
+      } else {
+        category = collectionsRaw.split(/[;,|]/)[0]?.trim() || collectionsRaw;
+      }
+    }
+
     const product: MeeshoProduct = {
       id: `${sku}-${i}`,
       rowIndex: i + 2,
       sku,
       name: name || "Untitled product",
       description,
-      category: pick(raw, "category") || "Home Decor",
+      category,
       price,
       mrp: mrp || price,
       gst: num(pick(raw, "gst"), 18),

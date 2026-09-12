@@ -348,6 +348,59 @@ a.tab-btn.studio-link:hover { color: var(--text); background: var(--primary-soft
   color: var(--text-muted);
   font-weight: 700;
 }
+.collection-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-height: 8px;
+  margin-bottom: 10px;
+}
+.collection-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--text);
+}
+.collection-chip button {
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  padding: 0 2px;
+}
+.collection-chip button:hover { color: #b33; }
+.collection-add-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.collection-add-row input {
+  flex: 1;
+  min-width: 0;
+}
+.prod-collections {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+.prod-collection-pill {
+  font-size: 11px;
+  font-weight: 650;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  background: var(--surface-2);
+}
 .modal.hidden { display: none !important; }
 .modal {
   position: fixed;

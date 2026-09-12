@@ -53,6 +53,7 @@ const SEED_PRODUCTS = [
   mrp: r[6],
   meesho: r[7],
   colors: [],
+  collections: [],
   designHours: 0,
   includeDesign: false,
   packagingExtras: { externalBox: false, sticker: false, ribbon: false },
@@ -387,6 +388,18 @@ const DEFAULT_SETTINGS = {
   mrpOffset: 1,
   meeshoCommissionPct: 20,
   filamentColors: DEFAULT_FILAMENT_COLORS,
+  /** Remembered collection names for the add datalist */
+  collectionLibrary: [
+    "Keychains",
+    "Charms",
+    "Home Decor",
+    "Planters",
+    "Phone Stands",
+    "Frames",
+    "Fridge Magnets",
+    "Religious",
+    "Toys",
+  ],
   sheetUrl: "https://script.google.com/macros/s/AKfycbyXDWFwa_m9LpCafNlMGptzHxpSY7JSQmnlK9D7cmPgyEVb5e2QtzMDQFh5jnZ7X6qHJA/exec",
   driveFolderId: "1wjql3Yu4fNZJNolL780WKepimVuTKPoh",
 };

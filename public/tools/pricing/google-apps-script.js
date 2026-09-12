@@ -28,7 +28,7 @@
 
 var SHEET_NAME = "Pricing";
 /** Bump when fixing sync bugs — Test Connection shows this so you know the Web App is updated */
-var SCRIPT_VERSION = 12;
+var SCRIPT_VERSION = 13;
 
 /** Same Drive parent used by listing images / Meesho */
 var DEFAULT_DRIVE_PARENT_ID = "1wjql3Yu4fNZJNolL780WKepimVuTKPoh";
@@ -112,6 +112,7 @@ var HEADERS = [
   "image3",
   "image4",
   "image5",
+  "collections",
   "updatedAt",
 ];
 
@@ -255,6 +256,7 @@ function productToRow_(p) {
     image3: p.image3 || "",
     image4: p.image4 || "",
     image5: p.image5 || "",
+    collections: p.collections || "[]",
     updatedAt: new Date().toISOString(),
   };
   return HEADERS.map(function (h) {

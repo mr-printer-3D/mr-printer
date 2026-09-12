@@ -17,6 +17,8 @@ let sortDir = 1;
 let skuManual = false;
 let draftColors = []; // [{id, colorId, name, price, weight, swatch}]
 let draftCustomPack = []; // [{id, name, cost}]
+/** @type {string[]} */
+let draftCollections = [];
 /** @type {{id:string,url:string,pendingFile?:File,preview?:string}[]} */
 let draftImages = [];
 let modalImages = [];
@@ -39,6 +41,7 @@ function migrateProduct(p) {
   return {
     ...p,
     colors: Array.isArray(p.colors) ? p.colors : [],
+    collections: normalizeCollections(p.collections),
     images,
     includeDesign: !!p.includeDesign || num(p.designHours) > 0,
     designHours: num(p.designHours),
@@ -73,6 +76,110 @@ function normalizeImageList(list) {
     })
     .filter((u) => /^https?:\/\//i.test(u) || u.startsWith("data:image/"))
     .slice(0, MAX_PRODUCT_IMAGES);
+}
+
+/** Multiple Shopify/catalog collections per product. */
+function normalizeCollections(list) {
+  if (Array.isArray(list)) {
+    return [
+      ...new Set(
+        list
+          .map((x) => String(x == null ? "" : x).trim())
+          .filter(Boolean)
+      ),
+    ];
+  }
+  const s = String(list == null ? "" : list).trim();
+  if (!s) return [];
+  if (s.startsWith("[")) {
+    try {
+      return normalizeCollections(JSON.parse(s));
+    } catch (_) {}
+  }
+  return [
+    ...new Set(
+      s
+        .split(/[;,|]/)
+        .map((x) => x.trim())
+        .filter(Boolean)
+    ),
+  ];
+}
+
+function rememberCollectionNames(names) {
+  const lib = Array.isArray(state.settings.collectionLibrary)
+    ? state.settings.collectionLibrary.slice()
+    : (DEFAULT_SETTINGS.collectionLibrary || []).slice();
+  let changed = false;
+  normalizeCollections(names).forEach((n) => {
+    if (!lib.some((x) => String(x).toLowerCase() === n.toLowerCase())) {
+      lib.push(n);
+      changed = true;
+    }
+  });
+  if (changed) {
+    state.settings.collectionLibrary = lib.sort((a, b) =>
+      String(a).localeCompare(String(b))
+    );
+    saveState();
+  }
+}
+
+function renderCollectionSuggestions() {
+  const dl = el("collection-suggestions");
+  if (!dl) return;
+  const lib = state.settings.collectionLibrary || DEFAULT_SETTINGS.collectionLibrary || [];
+  dl.innerHTML = lib
+    .map((n) => `<option value="${escapeHtml(String(n))}"></option>`)
+    .join("");
+}
+
+function renderCollectionsDraft() {
+  const box = el("collections-list");
+  if (!box) return;
+  if (!draftCollections.length) {
+    box.innerHTML = `<span class="thumb-more">No collections yet</span>`;
+    return;
+  }
+  box.innerHTML = draftCollections
+    .map(
+      (name, idx) =>
+        `<span class="collection-chip">${escapeHtml(name)}` +
+        `<button type="button" data-collection-remove="${idx}" title="Remove">×</button></span>`
+    )
+    .join("");
+}
+
+function addCollectionFromInput() {
+  const input = el("f-collection-input");
+  if (!input) return;
+  const name = String(input.value || "").trim();
+  if (!name) return;
+  if (draftCollections.some((c) => c.toLowerCase() === name.toLowerCase())) {
+    input.value = "";
+    return;
+  }
+  draftCollections = normalizeCollections(draftCollections.concat([name]));
+  rememberCollectionNames([name]);
+  input.value = "";
+  renderCollectionsDraft();
+  renderCollectionSuggestions();
+}
+
+function collectionPillsHtml(collections) {
+  const list = normalizeCollections(collections);
+  if (!list.length) return "";
+  return `<div class="prod-collections">${list
+    .map((c) => `<span class="prod-collection-pill">${escapeHtml(c)}</span>`)
+    .join("")}</div>`;
+}
+
+function shopifyTagsForProduct(p) {
+  const cols = normalizeCollections(p.collections);
+  return ["3D Print", "Mr Printer", ...cols]
+    .filter(Boolean)
+    .filter((t, i, arr) => arr.findIndex((x) => x.toLowerCase() === t.toLowerCase()) === i)
+    .join(", ");
 }
 
 function loadState() {
@@ -945,6 +1052,7 @@ function getFormProduct() {
         weight: num(c.weight),
         swatch: c.swatch,
       })),
+    collections: normalizeCollections(draftCollections),
     images: draftImages.map((x) => x.url).filter(Boolean),
     mrp: el("f-mrp").value,
     meesho: el("f-meesho").value,
@@ -1015,9 +1123,12 @@ function setFormFromProduct(p) {
     url,
     preview: url,
   }));
+  draftCollections = normalizeCollections(p.collections);
   renderColorRows();
   renderCustomPackRows();
   renderDraftImages();
+  renderCollectionsDraft();
+  renderCollectionSuggestions();
   updatePackLabels();
   renderFixedRates();
 }
@@ -1086,6 +1197,7 @@ function clearForm() {
   skuManual = false;
   draftColors = [];
   draftCustomPack = [];
+  draftCollections = [];
   draftImages = [];
   el("product-form").reset();
   el("f-sku").value = "";
@@ -1096,6 +1208,7 @@ function clearForm() {
   el("f-mrp").value = "";
   el("f-meesho").value = "";
   if (el("f-image-url")) el("f-image-url").value = "";
+  if (el("f-collection-input")) el("f-collection-input").value = "";
   el("f-designhours").value = 0;
   el("f-include-design").checked = false;
   el("design-fields").classList.add("hidden");
@@ -1108,6 +1221,8 @@ function clearForm() {
   renderColorRows();
   renderCustomPackRows();
   renderDraftImages();
+  renderCollectionsDraft();
+  renderCollectionSuggestions();
   updateFormTitle();
   el("edit-badge").classList.add("hidden");
   el("save-btn").textContent = "Save to Catalog";
@@ -1240,6 +1355,7 @@ el("product-form").addEventListener("submit", async (e) => {
   });
 
   if (!String(clean.sku || "").trim()) clean.sku = generateSku(clean.name, editingId);
+  rememberCollectionNames(clean.collections);
 
   let savedProduct;
   if (editingId) {
@@ -1262,6 +1378,27 @@ el("product-form").addEventListener("submit", async (e) => {
 });
 
 el("clear-btn").addEventListener("click", clearForm);
+
+if (el("add-collection-btn")) {
+  el("add-collection-btn").addEventListener("click", () => addCollectionFromInput());
+}
+if (el("f-collection-input")) {
+  el("f-collection-input").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      addCollectionFromInput();
+    }
+  });
+}
+if (el("collections-list")) {
+  el("collections-list").addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-collection-remove]");
+    if (!btn) return;
+    const idx = num(btn.dataset.collectionRemove);
+    draftCollections = draftCollections.filter((_, i) => i !== idx);
+    renderCollectionsDraft();
+  });
+}
 
 if (el("add-image-url-btn")) {
   el("add-image-url-btn").addEventListener("click", () => {
@@ -1522,6 +1659,7 @@ function renderCatalog() {
         <td>
           <div class="prod-name">${escapeHtml(p.name)}</div>
           <div class="prod-sub">${p.sku ? escapeHtml(p.sku) + " · " : ""}MRP ${inr(c.mrp)}</div>
+          ${collectionPillsHtml(p.collections)}
           ${colorDots(p.colors)}
         </td>
         <td>
@@ -1903,8 +2041,9 @@ if (el("export-shopify-btn")) {
           set("Description", desc);
           set("Vendor", "Mr. Printer Studio");
           set("Product category", "Home & Garden > Decor");
-          set("Type", "3D Printed");
-          set("Tags", "3D Print, Mr Printer");
+          const cols = normalizeCollections(p.collections);
+          set("Type", cols[0] || "3D Printed");
+          set("Tags", shopifyTagsForProduct(p));
           set("Published on online store", "TRUE");
           set("Status", "Active");
           set("SEO title", String(p.name || "").slice(0, 70));
@@ -1915,6 +2054,7 @@ if (el("export-shopify-btn")) {
           );
           set("Google Shopping / Condition", "New");
           set("Google Shopping / Custom product", "FALSE");
+          if (cols.length) set("Google Shopping / Custom label 0", cols.join("; "));
           const imgs = normalizeImageList(p.images);
           if (imgs[0]) {
             set("Product image URL", imgs[0]);
@@ -2294,7 +2434,7 @@ function setSharedSyncUi(message, kind) {
   setSyncStatus(message);
 }
 
-const REQUIRED_SCRIPT_VERSION = 12;
+const REQUIRED_SCRIPT_VERSION = 13;
 let syncInFlight = null;
 let bootstrapDone = false;
 
@@ -2395,6 +2535,7 @@ function productForSync(p) {
     image3: imgs[2] || "",
     image4: imgs[3] || "",
     image5: imgs[4] || "",
+    collections: JSON.stringify(normalizeCollections(p.collections)),
   };
 }
 
@@ -2492,6 +2633,7 @@ function remoteToProduct(r) {
     mrp: r.mrpSource === "manual" ? num(r.mrp) : null,
     meesho: r.meeshoSource === "manual" ? num(r.meesho) : null,
     images: [r.image1, r.image2, r.image3, r.image4, r.image5],
+    collections: normalizeCollections(r.collections),
   });
 }
 

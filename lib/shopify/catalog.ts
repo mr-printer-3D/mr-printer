@@ -126,10 +126,33 @@ export function buildShopifyCsv(products: MeeshoProduct[]): ExportResult {
     const price = Number(p.price).toFixed(2);
     const compare = p.mrp > p.price ? Number(p.mrp).toFixed(2) : "";
     const cost = costFromRaw(p);
-    const tags = ["3D Print", "Mr Printer", p.category].filter(Boolean).join(", ");
+    const collectionTags = (() => {
+      const raw = String(p.raw?.collections || p.raw?.collection || "").trim();
+      if (!raw) return [] as string[];
+      if (raw.startsWith("[")) {
+        try {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) {
+            return parsed.map((c) => String(c).trim()).filter(Boolean);
+          }
+        } catch {
+          /* fall through */
+        }
+      }
+      return raw
+        .replace(/^\[|\]$/g, "")
+        .split(/[;,|]/)
+        .map((c) => c.replace(/^["']|["']$/g, "").trim())
+        .filter(Boolean);
+    })();
+    const tags = ["3D Print", "Mr Printer", p.category, ...collectionTags]
+      .filter(Boolean)
+      .filter((t, i, arr) => arr.findIndex((x) => x.toLowerCase() === t.toLowerCase()) === i)
+      .join(", ");
     const seoTitle = p.name.slice(0, 70);
     const seoDesc = (p.description || p.name).slice(0, 320);
     const colorMeta = useColorOption ? colors.join("; ") : "";
+    const typeLabel = collectionTags[0] || p.category || "3D Printed";
 
     colors.forEach((color, vi) => {
       const row = emptyRow();
@@ -139,7 +162,7 @@ export function buildShopifyCsv(products: MeeshoProduct[]): ExportResult {
         set(row, "Description", p.description || `3D printed · ${p.dims || p.name}`);
         set(row, "Vendor", "Mr. Printer Studio");
         set(row, "Product category", "Home & Garden > Decor");
-        set(row, "Type", p.category || "3D Printed");
+        set(row, "Type", typeLabel);
         set(row, "Tags", tags);
         set(row, "Published on online store", "TRUE");
         set(row, "Status", "Active");
@@ -148,6 +171,9 @@ export function buildShopifyCsv(products: MeeshoProduct[]): ExportResult {
         set(row, "Color (product.metafields.shopify.color-pattern)", colorMeta);
         set(row, "Google Shopping / Condition", "New");
         set(row, "Google Shopping / Custom product", "FALSE");
+        if (collectionTags.length) {
+          set(row, "Google Shopping / Custom label 0", collectionTags.join("; "));
+        }
         if (images[0]) {
           set(row, "Product image URL", images[0]);
           set(row, "Image position", "1");
