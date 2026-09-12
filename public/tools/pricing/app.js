@@ -27,6 +27,8 @@ const MAX_PRODUCT_IMAGES = 5;
 const PAGE_SIZE = 50;
 let catalogPage = 1;
 let inventoryPage = 1;
+/** @type {Set<string>} */
+let selectedCatalogIds = new Set();
 
 /* ---------------------------- Persistence ---------------------------- */
 
@@ -1602,23 +1604,33 @@ function renderPager(containerId, page, totalItems, setPageFn) {
   return safePage;
 }
 
-function renderCatalog() {
-  const body = el("catalog-body");
-  if (!body) return;
+function updateCatalogSelectionUi(pageRows) {
+  const countEl = el("catalog-selected-count");
+  if (countEl) countEl.textContent = selectedCatalogIds.size + " selected";
+  const pageCheck = el("catalog-select-page");
+  if (pageCheck && pageRows) {
+    const ids = pageRows.map(({ p }) => p.id).filter(Boolean);
+    const allOn =
+      ids.length > 0 && ids.every((id) => selectedCatalogIds.has(id));
+    const someOn = ids.some((id) => selectedCatalogIds.has(id));
+    pageCheck.checked = allOn;
+    pageCheck.indeterminate = !allOn && someOn;
+  }
+}
+
+function getFilteredCatalogRows() {
   const searchEl = el("search-input");
   const query = searchEl ? String(searchEl.value || "").trim().toLowerCase() : "";
-  renderStats();
-
   let rows = state.products.map((p) => ({ p, c: calculate(p) }));
   if (query) {
     rows = rows.filter(
       ({ p }) =>
         p.name.toLowerCase().includes(query) ||
         (p.sku || "").toLowerCase().includes(query) ||
-        (p.colors || []).some((c) => (c.name || "").toLowerCase().includes(query))
+        (p.colors || []).some((c) => (c.name || "").toLowerCase().includes(query)) ||
+        normalizeCollections(p.collections).some((c) => c.toLowerCase().includes(query))
     );
   }
-
   if (sortKey) {
     rows.sort((a, b) => {
       const va = sortValue(a, sortKey);
@@ -1627,14 +1639,81 @@ function renderCatalog() {
       return (va - vb) * sortDir;
     });
   }
+  return rows;
+}
+
+async function bulkAddCollectionToSelected() {
+  const input = el("bulk-collection-input");
+  const raw = input ? String(input.value || "").trim() : "";
+  const toAdd = normalizeCollections(raw.split(/[;,|]/));
+  if (!toAdd.length) {
+    alert("Enter a collection name (or several separated by commas).");
+    return;
+  }
+  if (!selectedCatalogIds.size) {
+    alert("Select one or more products first (checkboxes in Catalog).");
+    return;
+  }
+  const changed = [];
+  state.products = state.products.map((p) => {
+    if (!selectedCatalogIds.has(p.id)) return p;
+    const next = normalizeCollections([...(p.collections || []), ...toAdd]);
+    const prev = normalizeCollections(p.collections);
+    if (next.length === prev.length && next.every((c, i) => c === prev[i])) return p;
+    const updated = migrateProduct({ ...p, collections: next });
+    changed.push(updated);
+    return updated;
+  });
+  if (!changed.length) {
+    showToast("Those collections were already on the selected products", "warn");
+    return;
+  }
+  rememberCollectionNames(toAdd);
+  saveState();
+  renderCatalog();
+  renderInventory();
+  if (input) input.value = "";
+  showToast(`Added collection to ${changed.length} product(s)`, "success");
+  if (isSheetConnected()) {
+    try {
+      await sheetPost({
+        action: "upsertMany",
+        products: changed.map(productForSync),
+      });
+      setSharedSyncUi("Collections synced · " + new Date().toLocaleTimeString(), "ok");
+    } catch (err) {
+      console.warn(err);
+      // Fallback one-by-one
+      for (let i = 0; i < changed.length; i++) {
+        try {
+          await syncUpsert(changed[i]);
+        } catch (_) {}
+      }
+    }
+  }
+}
+
+function renderCatalog() {
+  const body = el("catalog-body");
+  if (!body) return;
+  renderStats();
+
+  const rows = getFilteredCatalogRows();
+
+  // Drop selections for products that no longer exist
+  const alive = new Set(state.products.map((p) => p.id));
+  selectedCatalogIds.forEach((id) => {
+    if (!alive.has(id)) selectedCatalogIds.delete(id);
+  });
 
   if (!rows.length) {
     const msg =
       state.products.length === 0
         ? "No products yet. Use Restore catalog, or add one from the Calculator tab."
         : "No products match your search.";
-    body.innerHTML = `<tr><td colspan="8"><div class="empty-state">${msg}</div></td></tr>`;
+    body.innerHTML = `<tr><td colspan="9"><div class="empty-state">${msg}</div></td></tr>`;
     renderPager("catalog-pager", 1, 0, () => {});
+    updateCatalogSelectionUi([]);
     return;
   }
 
@@ -1654,8 +1733,13 @@ function renderCatalog() {
         .map((u) => imgTag(u, ""))
         .join("");
       const more = imgs.length > 3 ? `<span class="thumb-more">+${imgs.length - 3}</span>` : "";
+      const checked = selectedCatalogIds.has(p.id) ? "checked" : "";
+      const selClass = selectedCatalogIds.has(p.id) ? " catalog-row-selected" : "";
       return `
-      <tr>
+      <tr class="${selClass.trim()}">
+        <td class="col-check">
+          <input type="checkbox" class="row-check" data-catalog-select="${escapeHtml(p.id)}" ${checked} />
+        </td>
         <td>
           <div class="prod-name">${escapeHtml(p.name)}</div>
           <div class="prod-sub">${p.sku ? escapeHtml(p.sku) + " · " : ""}MRP ${inr(c.mrp)}</div>
@@ -1681,6 +1765,8 @@ function renderCatalog() {
       </tr>`;
     })
     .join("");
+
+  updateCatalogSelectionUi(pageRows);
 }
 
 function renderStats() {
@@ -1739,6 +1825,69 @@ el("search-input").addEventListener("input", () => {
   catalogPage = 1;
   renderCatalog();
 });
+
+if (el("catalog-body")) {
+  el("catalog-body").addEventListener("change", (e) => {
+    const box = e.target.closest("[data-catalog-select]");
+    if (!box) return;
+    const id = box.getAttribute("data-catalog-select");
+    if (!id) return;
+    if (box.checked) selectedCatalogIds.add(id);
+    else selectedCatalogIds.delete(id);
+    updateCatalogSelectionUi(getFilteredCatalogRows().slice(
+      (catalogPage - 1) * PAGE_SIZE,
+      catalogPage * PAGE_SIZE
+    ));
+    const row = box.closest("tr");
+    if (row) row.classList.toggle("catalog-row-selected", box.checked);
+  });
+}
+
+if (el("catalog-select-page")) {
+  el("catalog-select-page").addEventListener("change", () => {
+    const rows = getFilteredCatalogRows();
+    const start = (catalogPage - 1) * PAGE_SIZE;
+    const pageRows = rows.slice(start, start + PAGE_SIZE);
+    const on = el("catalog-select-page").checked;
+    pageRows.forEach(({ p }) => {
+      if (!p.id) return;
+      if (on) selectedCatalogIds.add(p.id);
+      else selectedCatalogIds.delete(p.id);
+    });
+    renderCatalog();
+  });
+}
+
+if (el("catalog-select-filtered")) {
+  el("catalog-select-filtered").addEventListener("click", () => {
+    getFilteredCatalogRows().forEach(({ p }) => {
+      if (p.id) selectedCatalogIds.add(p.id);
+    });
+    renderCatalog();
+    showToast(selectedCatalogIds.size + " product(s) selected", "success");
+  });
+}
+
+if (el("catalog-clear-selection")) {
+  el("catalog-clear-selection").addEventListener("click", () => {
+    selectedCatalogIds.clear();
+    renderCatalog();
+  });
+}
+
+if (el("bulk-add-collection-btn")) {
+  el("bulk-add-collection-btn").addEventListener("click", () => {
+    void bulkAddCollectionToSelected();
+  });
+}
+if (el("bulk-collection-input")) {
+  el("bulk-collection-input").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      void bulkAddCollectionToSelected();
+    }
+  });
+}
 
 if (el("restore-catalog-btn")) {
   el("restore-catalog-btn").addEventListener("click", async () => {

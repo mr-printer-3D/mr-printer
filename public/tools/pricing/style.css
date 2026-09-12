@@ -401,6 +401,54 @@ a.tab-btn.studio-link:hover { color: var(--text); background: var(--primary-soft
   color: var(--text-muted);
   background: var(--surface-2);
 }
+.bulk-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  margin: 0 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-2);
+}
+.bulk-select-all {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.bulk-count {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text);
+  min-width: 72px;
+}
+.bulk-collection-add {
+  display: flex;
+  flex: 1;
+  gap: 8px;
+  min-width: 220px;
+  align-items: center;
+}
+.bulk-collection-add input {
+  flex: 1;
+  min-width: 0;
+}
+.col-check {
+  width: 36px;
+}
+.row-check {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+}
+.catalog-row-selected {
+  background: color-mix(in srgb, var(--accent, #c9922a) 10%, transparent);
+}
 .modal.hidden { display: none !important; }
 .modal {
   position: fixed;
