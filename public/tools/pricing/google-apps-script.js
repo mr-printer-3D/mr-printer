@@ -11,9 +11,10 @@
     Who has access: Anyone
 
   DRIVE PERMISSION (required for image upload):
-  1. In Apps Script, select function authorizeDrive → Run
-  2. Review permissions → Allow (Google Drive)
-  3. Deploy → Manage deployments → Edit → New version → Deploy
+  1. Paste this file + set appsscript.json Drive scope
+  2. Run authorizeDrive (fast). If timeout on first Allow, Run again.
+  3. Optional: run checkDriveFolder
+  4. Deploy → Manage deployments → Edit → New version → Deploy
 
   Sheet:
   https://docs.google.com/spreadsheets/d/1HaJIjWntMd16vnSAFa9wASb_sWds2YwmrN4yGmGZ84M/edit
@@ -27,55 +28,52 @@
 
 var SHEET_NAME = "Pricing";
 /** Bump when fixing sync bugs — Test Connection shows this so you know the Web App is updated */
-var SCRIPT_VERSION = 10;
+var SCRIPT_VERSION = 11;
 
 /** Same Drive parent used by listing images / Meesho */
 var DEFAULT_DRIVE_PARENT_ID = "1wjql3Yu4fNZJNolL780WKepimVuTKPoh";
 
 /**
- * Run this ONCE from the Apps Script editor:
- *   1) Project Settings (gear) → enable "Show appsscript.json manifest file in editor"
- *   2) Open appsscript.json and ensure oauthScopes includes:
- *        "https://www.googleapis.com/auth/drive"
- *        "https://www.googleapis.com/auth/spreadsheets"
- *   3) Select authorizeDrive → Run ▶ → Allow (must list Google Drive)
- *   4) Deploy → Manage deployments → Edit → New version → Deploy
- *   5) Pricing Settings → Test connection → v10+ and Drive: OK
+ * FAST auth — run this first. Do NOT create folders / show alerts here
+ * (those often hit "Exceeded maximum execution time" during OAuth).
+ *
+ * Steps:
+ *   1) Project Settings → Show appsscript.json → include auth/drive scope → Save
+ *   2) Select authorizeDrive → Run ▶
+ *   3) If a Review permissions popup appears: Allow within ~30s (Drive + Sheets)
+ *   4) If first run says "Exceeded maximum execution time": that is normal —
+ *      permissions may already be granted. Run authorizeDrive AGAIN.
+ *   5) Execution log should show: Drive OK
+ *   6) Optional: run checkDriveFolder (tests parent folder access)
+ *   7) Deploy → Manage deployments → Edit → New version → Deploy
  */
 function authorizeDrive() {
-  var root = DriveApp.getRootFolder().getName();
-  var sheet = SpreadsheetApp.getActiveSpreadsheet().getName();
+  // One cheap Drive call — enough to request / confirm Drive OAuth.
+  var id = DriveApp.getRootFolder().getId();
+  Logger.log("Drive OK. rootId=" + id + " script v" + SCRIPT_VERSION);
+  return "Drive OK (v" + SCRIPT_VERSION + "). If this was first Allow, run once more, then Deploy → New version.";
+}
+
+/**
+ * Optional second check: can this account open the image parent folder?
+ * Run only AFTER authorizeDrive succeeds quickly.
+ */
+function checkDriveFolder() {
   var parent = DriveApp.getFolderById(DEFAULT_DRIVE_PARENT_ID);
-  var testName = "_auth_test_" + Date.now();
-  var testFolder = parent.createFolder(testName);
-  testFolder.setTrashed(true);
-  var msg =
-    "OK — Drive + Sheets authorized.\nRoot: " +
-    root +
-    "\nSheet: " +
-    sheet +
-    "\nParent folder: " +
-    parent.getName() +
-    "\nScript v" +
-    SCRIPT_VERSION +
-    "\n\nNow: Deploy → Manage deployments → Edit → New version → Deploy";
-  try {
-    SpreadsheetApp.getUi().alert(msg);
-  } catch (e) {
-    Logger.log(msg);
-  }
-  return msg;
+  var name = parent.getName();
+  Logger.log("Parent folder OK: " + name + " (" + DEFAULT_DRIVE_PARENT_ID + ")");
+  return "Parent folder OK: " + name;
 }
 
 function pingDrive_() {
   try {
+    // Keep ping cheap — name only, no create/trash (avoids timeouts).
     var parent = DriveApp.getFolderById(DEFAULT_DRIVE_PARENT_ID);
     return {
       ok: true,
       drive: true,
       parentName: parent.getName(),
       parentId: DEFAULT_DRIVE_PARENT_ID,
-      root: DriveApp.getRootFolder().getName(),
     };
   } catch (err) {
     return { ok: false, drive: false, error: String(err) };

@@ -732,9 +732,9 @@ async function uploadPendingImages(sku, list) {
           "Do ALL of these:\n" +
           "1. Apps Script → Project Settings (gear) → turn ON “Show appsscript.json”\n" +
           "2. Open appsscript.json → add scope https://www.googleapis.com/auth/drive\n" +
-          "3. Save → select authorizeDrive → Run ▶ → Allow Drive\n" +
+          "3. Save → select authorizeDrive → Run ▶ → Allow Drive (fast; if timeout, Run again)\n" +
           "4. Deploy → Manage deployments → Edit → New version → Deploy\n" +
-          "5. Settings → Test connection must show Drive: OK (v10+)\n\n" +
+          "5. Settings → Test connection must show Drive: OK (v11+)\n\n" +
           "Also share the Drive parent folder with the SAME Google account that owns the script (Editor).\n\n" +
           err
       );
@@ -2173,7 +2173,7 @@ function setSharedSyncUi(message, kind) {
   setSyncStatus(message);
 }
 
-const REQUIRED_SCRIPT_VERSION = 10;
+const REQUIRED_SCRIPT_VERSION = 11;
 let syncInFlight = null;
 let bootstrapDone = false;
 
