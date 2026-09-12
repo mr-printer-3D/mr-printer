@@ -672,6 +672,74 @@ function imgTag(src, alt) {
   );
 }
 
+/** Collect Drive file ids from image URL list. */
+function driveFileIdsFromUrls(urls) {
+  const ids = [];
+  const seen = {};
+  (urls || []).forEach((u) => {
+    const id = extractDriveFileId(u);
+    if (id && !seen[id]) {
+      seen[id] = true;
+      ids.push(id);
+    }
+  });
+  return ids;
+}
+
+/** Trash Drive files for URLs removed in the Pricing tool. Soft-fail so UI delete still works. */
+async function deleteDriveFilesByUrls(urls) {
+  const fileIds = driveFileIdsFromUrls(urls);
+  if (!fileIds.length) return { ok: true, count: 0 };
+  ensureSheetUrlSaved();
+  if (!isSheetConnected()) return { ok: false, count: 0, skipped: true };
+  try {
+    const res = await sheetPost({ action: "deleteDriveFiles", fileIds });
+    return res;
+  } catch (err) {
+    console.warn("Drive file delete failed", err);
+    return { ok: false, error: err.message || String(err) };
+  }
+}
+
+/** Trash parent/{SKU} folder when a product is deleted. */
+async function deleteDriveSkuFolder(sku) {
+  const cleanSku = String(sku || "")
+    .trim()
+    .replace(/[\\/:*?"<>|]/g, "-");
+  if (!cleanSku) return { ok: true, count: 0 };
+  const parentFolderId = getDriveFolderId();
+  ensureSheetUrlSaved();
+  if (!isSheetConnected() || !parentFolderId) return { ok: false, skipped: true };
+  try {
+    return await sheetPost({
+      action: "deleteDriveSkuFolder",
+      parentFolderId,
+      sku: cleanSku,
+    });
+  } catch (err) {
+    console.warn("Drive SKU folder delete failed", err);
+    return { ok: false, error: err.message || String(err) };
+  }
+}
+
+/** Diff old vs new image lists → trash Drive files that were removed/replaced. */
+async function trashRemovedDriveImages(prevUrls, nextUrls) {
+  const nextSet = {};
+  normalizeImageList(nextUrls).forEach((u) => {
+    nextSet[u] = true;
+    const id = extractDriveFileId(u);
+    if (id) nextSet["id:" + id] = true;
+  });
+  const removed = normalizeImageList(prevUrls).filter((u) => {
+    if (nextSet[u]) return false;
+    const id = extractDriveFileId(u);
+    if (id && nextSet["id:" + id]) return false;
+    return !!extractDriveFileId(u);
+  });
+  if (!removed.length) return;
+  await deleteDriveFilesByUrls(removed);
+}
+
 function renderImageGrid(containerId, list, opts) {
   const box = el(containerId);
   if (!box) return;
@@ -1134,6 +1202,12 @@ el("product-form").addEventListener("submit", async (e) => {
       const sku = String(p.sku || "").trim() || generateSku(p.name, editingId);
       imageUrls = await uploadPendingImages(sku, draftImages);
     }
+    // Trash Drive files removed/replaced on this save
+    const prevImages =
+      editingId && state.products.find((x) => x.id === editingId)
+        ? state.products.find((x) => x.id === editingId).images || []
+        : [];
+    await trashRemovedDriveImages(prevImages, imageUrls);
   } catch (err) {
     console.error(err);
     alert("Could not upload images: " + (err.message || err));
@@ -1270,7 +1344,9 @@ if (el("image-modal")) {
     try {
       btn.disabled = true;
       btn.textContent = "Saving…";
+      const prevImages = normalizeImageList(p.images);
       const urls = await uploadPendingImages(p.sku || p.name, modalImages);
+      await trashRemovedDriveImages(prevImages, urls);
       state.products[idx] = { ...p, images: urls };
       saveState();
       renderCatalog();
@@ -1321,11 +1397,20 @@ function duplicateProduct(id) {
 
 function deleteProduct(id) {
   if (!confirm("Delete this product from the catalog?")) return;
+  const removed = state.products.find((x) => x.id === id);
   state.products = state.products.filter((x) => x.id !== id);
   saveState();
   renderCatalog();
   renderInventory();
   syncDelete(id);
+  // Also trash Drive images / SKU folder for this product
+  if (removed) {
+    void (async () => {
+      await deleteDriveFilesByUrls(removed.images || []);
+      await deleteDriveSkuFolder(removed.sku);
+      showToast("Product images removed from Drive", "success");
+    })();
+  }
 }
 
 el("clear-all-btn").addEventListener("click", () => {
@@ -2209,7 +2294,7 @@ function setSharedSyncUi(message, kind) {
   setSyncStatus(message);
 }
 
-const REQUIRED_SCRIPT_VERSION = 11;
+const REQUIRED_SCRIPT_VERSION = 12;
 let syncInFlight = null;
 let bootstrapDone = false;
 

@@ -22,13 +22,13 @@
   API:
     GET  ?api=1
     POST text/plain JSON → upsert | upsertMany | delete | replaceAll |
-         repairHeaders | uploadProductImages
+         repairHeaders | uploadProductImages | deleteDriveFiles | deleteDriveSkuFolder
   ============================================================================
 */
 
 var SHEET_NAME = "Pricing";
 /** Bump when fixing sync bugs — Test Connection shows this so you know the Web App is updated */
-var SCRIPT_VERSION = 11;
+var SCRIPT_VERSION = 12;
 
 /** Same Drive parent used by listing images / Meesho */
 var DEFAULT_DRIVE_PARENT_ID = "1wjql3Yu4fNZJNolL780WKepimVuTKPoh";
@@ -535,6 +535,60 @@ function doPost(e) {
         folderName: sku,
         count: uploaded.length,
         files: uploaded,
+        scriptVersion: SCRIPT_VERSION,
+      });
+    }
+
+    /**
+     * Trash Drive files by id (from image URLs deleted in the Pricing tool).
+     */
+    if (action === "deleteDriveFiles") {
+      var fileIds = data.fileIds || [];
+      var trashed = [];
+      var errors = [];
+      for (var di = 0; di < fileIds.length; di++) {
+        var fid = String(fileIds[di] || "").trim();
+        if (!fid) continue;
+        try {
+          DriveApp.getFileById(fid).setTrashed(true);
+          trashed.push(fid);
+        } catch (delErr) {
+          errors.push(fid + ": " + String(delErr));
+        }
+      }
+      return jsonOut_({
+        ok: true,
+        action: "deleteDriveFiles",
+        count: trashed.length,
+        trashed: trashed,
+        errors: errors,
+        scriptVersion: SCRIPT_VERSION,
+      });
+    }
+
+    /**
+     * Trash the whole SKU folder under the parent (when a product is deleted).
+     */
+    if (action === "deleteDriveSkuFolder") {
+      var delParentId = String(data.parentFolderId || "").trim() || DEFAULT_DRIVE_PARENT_ID;
+      var delSku = String(data.sku || "")
+        .trim()
+        .replace(/[\\/:*?"<>|]/g, "-");
+      if (!delSku) throw new Error("sku is required.");
+      var delParent = DriveApp.getFolderById(delParentId);
+      var folders = delParent.getFoldersByName(delSku);
+      var removedFolders = [];
+      while (folders.hasNext()) {
+        var fold = folders.next();
+        fold.setTrashed(true);
+        removedFolders.push(fold.getId());
+      }
+      return jsonOut_({
+        ok: true,
+        action: "deleteDriveSkuFolder",
+        sku: delSku,
+        removedFolders: removedFolders,
+        count: removedFolders.length,
         scriptVersion: SCRIPT_VERSION,
       });
     }
