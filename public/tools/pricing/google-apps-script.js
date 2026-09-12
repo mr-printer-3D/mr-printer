@@ -519,7 +519,11 @@ function doPost(e) {
         uploaded.push({
           id: created.getId(),
           name: created.getName(),
-          url: "https://drive.google.com/uc?export=view&id=" + created.getId(),
+          // Thumbnail embeds reliably in browsers; uc?export=view often 403s in <img>
+          url:
+            "https://drive.google.com/thumbnail?id=" +
+            created.getId() +
+            "&sz=w2000",
         });
       }
 

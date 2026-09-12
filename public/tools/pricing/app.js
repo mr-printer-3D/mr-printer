@@ -636,6 +636,42 @@ function getDriveFolderId() {
   return String(state.settings.driveFolderId || DEFAULT_SETTINGS.driveFolderId || "").trim();
 }
 
+/** Pull a Google Drive file id out of common link shapes. */
+function extractDriveFileId(url) {
+  const s = String(url || "").trim();
+  if (!s) return "";
+  let m = s.match(/[?&]id=([a-zA-Z0-9_-]{10,})/);
+  if (m) return m[1];
+  m = s.match(/\/file\/d\/([a-zA-Z0-9_-]{10,})/);
+  if (m) return m[1];
+  m = s.match(/\/d\/([a-zA-Z0-9_-]{10,})(?:\/|$)/);
+  if (m) return m[1];
+  return "";
+}
+
+/**
+ * Drive uc?export=view links often break in <img> (403 / login HTML).
+ * Thumbnail + no-referrer is the reliable browser embed.
+ */
+function toDisplayImageUrl(url) {
+  const u = String(url || "").trim();
+  if (!u) return "";
+  if (u.startsWith("data:image/") || u.startsWith("blob:")) return u;
+  const id = extractDriveFileId(u);
+  if (id && /drive\.google\.com|googleusercontent\.com/i.test(u)) {
+    return "https://drive.google.com/thumbnail?id=" + encodeURIComponent(id) + "&sz=w1200";
+  }
+  return u;
+}
+
+function imgTag(src, alt) {
+  const display = toDisplayImageUrl(src);
+  return (
+    `<img src="${escapeHtml(display)}" alt="${escapeHtml(alt || "")}" ` +
+    `loading="lazy" referrerpolicy="no-referrer" decoding="async" />`
+  );
+}
+
 function renderImageGrid(containerId, list, opts) {
   const box = el(containerId);
   if (!box) return;
@@ -648,7 +684,7 @@ function renderImageGrid(containerId, list, opts) {
     .map((img, idx) => {
       const src = img.preview || img.url || "";
       return `<div class="image-tile" data-idx="${idx}">
-        <img src="${escapeHtml(src)}" alt="Product image ${idx + 1}" />
+        ${imgTag(src, "Product image " + (idx + 1))}
         ${
           canEdit
             ? `<div class="img-actions">
@@ -1393,7 +1429,7 @@ function renderCatalog() {
       const imgs = p.images || [];
       const thumbs = imgs
         .slice(0, 3)
-        .map((u) => `<img src="${escapeHtml(u)}" alt="" />`)
+        .map((u) => imgTag(u, ""))
         .join("");
       const more = imgs.length > 3 ? `<span class="thumb-more">+${imgs.length - 3}</span>` : "";
       return `
@@ -2573,6 +2609,16 @@ async function syncPullAll(opts) {
         const remoteIds = {};
         const merged = nextFromRemote.map((p) => {
           remoteIds[p.id] = true;
+          const prev = prevById[p.id];
+          // Old Apps Script (no image columns) returns empty images — keep local photos
+          if (
+            prev &&
+            Array.isArray(prev.images) &&
+            prev.images.length &&
+            (!Array.isArray(p.images) || !p.images.length)
+          ) {
+            return { ...p, images: prev.images };
+          }
           return p;
         });
         Object.keys(prevById).forEach((id) => {
